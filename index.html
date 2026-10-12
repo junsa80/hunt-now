@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1b1430">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>헌트 나우: 정화의 사냥꾼</title>
+<link rel="stylesheet" href="style.css">
+</head><body>
+<canvas id="cv"></canvas>
+<div id="hud" class="hidden">
+  <div id="topbar">
+    <div class="bars"><div class="nm" id="pName">헌터</div><div class="bar hp"><i id="pHp"></i></div><div class="bar st"><i id="pCharge"></i></div><div id="pStatus" class="stat"></div></div>
+    <div id="timer">100</div>
+    <div class="bars right" id="mPanel"><div class="nm" id="mName">몬스터</div><div class="bar mhp"><i id="mHp"></i></div><div id="mParts" class="parts"></div><div id="mStatus" class="stat"></div></div>
+  </div>
+  <div id="party"></div>
+  <div id="line"></div>
+  <div id="banner"></div>
+  <div id="counter" class="hidden">반격 찬스!</div>
+  <div id="joyzone"><div id="joy"><div id="knob"></div></div></div>
+  <div id="btns">
+    <button id="bTarget" class="rb small">타겟<br>전환</button>
+    <button id="bDodge" class="rb mid">회피</button>
+    <button id="bAtk" class="rb big"><span id="atkLbl">공격</span><svg id="chargeRing" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46"/></svg></button>
+  </div>
+  <div id="rotHint">가로 화면을 추천해요</div>
+</div>
+<div id="dmgLayer"></div>
+<div id="flash"></div>
+<div id="ui"></div>
+<script type="module" src="main.js"></script>
+</body></html>
