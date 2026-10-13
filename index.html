@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>헌트 나우: 정화의 사냥꾼</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=3">
 </head><body>
 <canvas id="cv"></canvas>
 <div id="hud" class="hidden">
@@ -21,16 +21,18 @@
   <div id="line"></div>
   <div id="banner"></div>
   <div id="counter" class="hidden">반격 찬스!</div>
-  <div id="joyzone"><div id="joy"><div id="knob"></div></div></div>
+  <div id="touch"></div>
+  <div id="stick"><div id="knob"></div></div>
+  <div id="holdRing"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="46"/></svg></div>
   <div id="btns">
-    <button id="bTarget" class="rb small">타겟<br>전환</button>
-    <button id="bDodge" class="rb mid">회피</button>
-    <button id="bAtk" class="rb big"><span id="atkLbl">공격</span><svg id="chargeRing" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46"/></svg></button>
+    <button id="bSp" class="rb sp"><svg id="spRing" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46"/></svg><span class="spn" id="spName">특수기</span><span id="spLbl">0%</span></button>
+    <button id="bTarget" class="rb small">타겟</button>
   </div>
-  <div id="rotHint">가로 화면을 추천해요</div>
+  <button id="bDodge" class="rb mid hidden">회피</button>
+  <div id="ctrlHint">드래그=이동 · 탭=공격 · 휙 밀기=회피 · 길게=<span id="holdName"></span></div>
 </div>
 <div id="dmgLayer"></div>
 <div id="flash"></div>
 <div id="ui"></div>
-<script type="module" src="main.js"></script>
+<script type="module" src="main.js?v=3"></script>
 </body></html>

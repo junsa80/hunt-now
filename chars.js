@@ -86,6 +86,8 @@ export function buildGirl(opt) {
   // 무기
   const weapon = new THREE.Group(); armR.end.add(weapon);
   setWeapon(weapon, opt.weapon, opt.weaponColor);
+  if (opt.offhand) { const w2 = new THREE.Group(); armL.end.add(w2); setWeapon(w2, opt.offhand, opt.weaponColor); }
+  if (opt.bigShield) { const sh = part(armL.end, G.box, toon(opt.bigShield), 0.04, 0.6, 0.36, 0.06, 0.05, 0.05); part(armL.end, G.box, toon(0xffd54a), 0.045, 0.1, 0.1, 0.07, 0.05, 0.05, false); }
   if (opt.shield) { const sh = part(armL.end, G.cyl, toon(opt.shield), 0.17, 0.03, 0.17, 0.04, 0, 0.02); sh.rotation.z = Math.PI / 2; }
   // 블롭 그림자
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.4, 16), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0.35, depthWrite: false }));
@@ -103,6 +105,13 @@ export function setWeapon(g, type, color = 0xd8e0ff) {
     part(g, G.box, M, 0.17, 1.15, 0.04, 0, 0.75, 0); }
   else if (type === 'staff') { part(g, G.cyl, Hd, 0.025, 1.0, 0.025, 0, 0.2, 0); part(g, G.sph, toon(color, color), 0.08, 0.08, 0.08, 0, 0.72, 0); }
   else if (type === 'claw') { for (const x of [-0.04, 0, 0.04]) { const c = part(g, G.cone8, M, 0.02, 0.18, 0.02, x, 0.1, 0.03); c.rotation.x = 0.4; } }
+  else if (type === 'ls') { part(g, G.box, Hd, 0.035, 0.22, 0.035, 0, 0.02, 0); part(g, G.cyl, toon(0xffd54a), 0.07, 0.015, 0.07, 0, 0.14, 0);
+    const b = part(g, G.box, M, 0.035, 1.05, 0.012, 0, 0.68, 0); b.rotation.z = 0.04; part(g, G.cone8, M, 0.02, 0.1, 0.008, 0.015, 1.24, 0); }
+  else if (type === 'db') { part(g, G.box, Hd, 0.035, 0.1, 0.035, 0, 0, 0); part(g, G.box, M, 0.05, 0.42, 0.015, 0, 0.26, 0); part(g, G.cone8, M, 0.026, 0.1, 0.01, 0, 0.52, 0); }
+  else if (type === 'lance') { part(g, G.cyl, Hd, 0.03, 0.3, 0.03, 0, 0, 0); part(g, G.cyl, toon(0xffd54a), 0.09, 0.04, 0.09, 0, 0.17, 0); part(g, G.cone8, M, 0.075, 1.2, 0.075, 0, 0.8, 0); }
+  else if (type === 'bow') { const arc = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 6, 18, Math.PI * 0.9), M); arc.rotation.z = Math.PI / 2 - Math.PI * 0.45; arc.position.x = -0.3; g.add(arc);
+    const str = part(g, G.cyl, toon(0xffffff), 0.006, 0.8, 0.006, 0.01, 0, 0, false); g.rotation.x = 0; g.userData.bow = true; return; }
+  else if (type === 'whammer') { part(g, G.cyl, Hd, 0.03, 0.85, 0.03, 0, 0.3, 0); const h = part(g, G.box, M, 0.24, 0.24, 0.42, 0, 0.75, 0); part(g, G.box, toon(0xffd54a), 0.26, 0.05, 0.44, 0, 0.75, 0, false); }
   else if (type === 'hammer') { part(g, G.cyl, Hd, 0.03, 0.8, 0.03, 0, 0.3, 0); const h = part(g, G.cyl, M, 0.14, 0.34, 0.14, 0, 0.72, 0); h.rotation.z = Math.PI / 2; }
   g.rotation.x = Math.PI / 2; // 손에서 앞쪽으로
 }
@@ -123,7 +132,10 @@ export function animate(root, a) {
     r.torso.rotation.y = s * 0.15; r.skirt.rotation.x = -0.15 * run; } else r.skirt.rotation.x = 0;
   const p = a.p ?? 0, ease = (x) => 1 - Math.pow(1 - x, 3);
   switch (a.state) {
-    case 'attack': { const c = a.combo % 4, heavy = a.heavy;
+    case 'attack': if (a.wtype === 'bow') { r.armL.sh.rotation.x = -1.55; r.armL.el.rotation.x = 0; r.armR.sh.rotation.x = -1.5; r.armR.sh.rotation.z = -0.5; r.armR.el.rotation.x = -1.6 * (1 - p); r.torso.rotation.y = 0.5; r.legL.sh.rotation.x = -0.3; r.legR.sh.rotation.x = 0.3; break; }
+      if (a.wtype === 'lance') { const k = p < 0.3 ? -p / 0.3 : Math.min(1, (p - 0.3) / 0.25); r.armR.sh.rotation.x = -1.5; r.armR.el.rotation.x = 0; r.armR.sh.rotation.z = 0.1; r.body.position.z = 0.25 * k; r.torso.rotation.x = 0.2 * k; r.armL.sh.rotation.x = -1.3; r.armL.sh.rotation.z = 0.5; r.legL.sh.rotation.x = -0.6; r.legR.sh.rotation.x = 0.5; break; }
+      if (a.wtype === 'db') { const c2 = (a.combo || 0) % 2, e2 = ease(p); r.armR.sh.rotation.x = -1.4; r.armL.sh.rotation.x = -1.4; r.armR.sh.rotation.z = c2 ? 1.4 - 2.6 * e2 : -1.2 + 2.6 * e2; r.armL.sh.rotation.z = c2 ? 1.2 - 2.6 * e2 : -1.4 + 2.6 * e2; r.torso.rotation.y = (c2 ? 0.5 : -0.5) * (1 - 2 * e2); r.legL.sh.rotation.x = -0.5; r.legR.sh.rotation.x = 0.4; break; }
+    { const c = a.combo % 4, heavy = a.heavy;
       const wind = heavy ? 0.45 : 0.3, e = p < wind ? p / wind : ease((p - wind) / (1 - wind)), up = p < wind;
       if (c === 1) { // 가로 베기
         r.armR.sh.rotation.x = -1.4; r.armR.sh.rotation.z = up ? 1.4 * e : 1.4 - 2.8 * e; r.torso.rotation.y = up ? 0.6 * e : 0.6 - 1.4 * e; }
@@ -131,7 +143,9 @@ export function animate(root, a) {
         r.body.rotation.y = up ? -0.5 * e : -0.5 + Math.PI * 2 * e; r.armR.sh.rotation.x = -1.5; r.armR.sh.rotation.z = 0.6; }
       else { r.armR.sh.rotation.x = up ? -2.8 * e : -2.8 + 3.6 * e; r.torso.rotation.x = up ? -0.2 * e : -0.2 + 0.6 * e; r.armL.sh.rotation.x = up ? -0.5 : 0.3; }
       r.legL.sh.rotation.x = -0.5; r.legR.sh.rotation.x = 0.4; r.legL.el.rotation.x = 0.4; r.body.position.y = -0.04; break; }
-    case 'charge': { const sh = Math.sin(T * 60) * 0.02 * (a.lvl || 1);
+    case 'dance': { r.body.rotation.y = T * 16; r.armL.sh.rotation.z = -1.5; r.armR.sh.rotation.z = 1.5; r.armL.sh.rotation.x = r.armR.sh.rotation.x = -0.4; r.body.position.y = 0.05 + Math.abs(Math.sin(T * 16)) * 0.08; break; }
+    case 'special': { r.body.rotation.y = p * Math.PI * 4; r.armR.sh.rotation.x = -2.6 + Math.sin(p * 30) * 1.2; r.armL.sh.rotation.x = -1.8; r.body.position.y = 0.25 * Math.sin(p * Math.PI); break; }
+    case 'charge': if (a.wtype === 'bow') { r.armL.sh.rotation.x = -1.55; r.armL.el.rotation.x = 0; r.armR.sh.rotation.x = -1.5; r.armR.sh.rotation.z = -0.5; r.armR.el.rotation.x = -1.8; r.torso.rotation.y = 0.5; break; } { const sh = Math.sin(T * 60) * 0.02 * (a.lvl || 1);
       r.armR.sh.rotation.x = -2.6 + sh; r.armL.sh.rotation.x = -2.4; r.torso.rotation.x = -0.25; r.torso.rotation.y = 0.4; r.legL.sh.rotation.x = -0.6; r.legR.sh.rotation.x = 0.5; r.legL.el.rotation.x = 0.6; r.body.position.y = -0.1; break; }
     case 'roll': { r.body.rotation.x = p * Math.PI * 2; r.body.position.y = 0.35 * Math.sin(p * Math.PI) - 0.2; r.legL.sh.rotation.x = r.legR.sh.rotation.x = -1.6; r.legL.el.rotation.x = r.legR.el.rotation.x = 2;
       r.armL.sh.rotation.x = r.armR.sh.rotation.x = -1.2; r.torso.rotation.x = 0.8; break; }
@@ -145,7 +159,7 @@ export function animate(root, a) {
       else { r.armR.sh.rotation.x = -2.2 * p; r.torso.rotation.y = 0.6 * p; }
       break; }
     case 'strike': { r.armL.sh.rotation.x = r.armR.sh.rotation.x = 0.8; r.torso.rotation.x = 0.5; r.body.position.y = -0.08; break; }
-    case 'guard': { r.armL.sh.rotation.x = -1.4; r.armL.sh.rotation.z = 0.6; r.torso.rotation.x = 0.15; r.legL.sh.rotation.x = -0.4; r.legR.sh.rotation.x = 0.4; break; }
+    case 'guard': if (a.wtype === 'lance') { r.armL.sh.rotation.x = -1.3; r.armL.sh.rotation.z = 0.5; r.armR.sh.rotation.x = -1.3; r.torso.rotation.x = 0.25; r.legL.sh.rotation.x = -0.6; r.legR.sh.rotation.x = 0.6; r.body.position.y = -0.08; break; } { r.armL.sh.rotation.x = -1.4; r.armL.sh.rotation.z = 0.6; r.torso.rotation.x = 0.15; r.legL.sh.rotation.x = -0.4; r.legR.sh.rotation.x = 0.4; break; }
     case 'cheer': { r.armL.sh.rotation.z = -2.6; r.armR.sh.rotation.z = 2.6; r.body.position.y = Math.abs(Math.sin(T * 8)) * 0.12; break; }
   }
   if (r.tail.children.length) { let g = r.tail.children[0], i = 0; r.tail.rotation.x = 0.4; while (g) { g.rotation.y = Math.sin(T * 3 - i) * 0.25; g.rotation.x = -0.12; g = g.children.find(c => c.isGroup); i++; } }
