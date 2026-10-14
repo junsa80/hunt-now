@@ -71,3 +71,32 @@ h1{margin:4px 0 8px;font-size:24px}h2{font-size:18px;margin:14px 0 6px}
 .tag.pur{background:#7a3ac8}.water{color:#5ab8ff}
 .card.notice{border-color:#ffe066;background:#ffe06622}
 @media (orientation:landscape){#ctrlHint{bottom:24px}}
+
+/* ── v4 HUD: 몬헌 나우풍 ── */
+.bar{position:relative;box-shadow:0 1px 4px #0006}
+.bar i{position:relative;z-index:1}
+.bar .lag{position:absolute;left:0;top:0;bottom:0;width:100%;background:#fff;opacity:.85;z-index:0;display:block}
+.hp i{background:linear-gradient(180deg,#9dff8a,#2fbf62 60%,#1f9a4a)}
+#mPanel .nm{font-size:15px;font-weight:900;text-shadow:0 0 4px #000,0 2px 0 #000;letter-spacing:.5px}
+#mPanel .lv{display:inline-block;background:linear-gradient(#ffe48a,#d89a2a);color:#3a2000;border-radius:6px;padding:0 6px;margin-right:6px;font-size:12px;vertical-align:2px;box-shadow:0 0 0 1px #0006}
+.bar.mhp{height:10px;border:1px solid #ffd27a99;background:#1a0a0acc}
+.mhp i{background:linear-gradient(180deg,#ff8a6a,#e0303a 60%,#a01a2a)}
+#timer{display:flex;align-items:center;gap:4px;font-size:18px;border:1px solid #fff4;background:linear-gradient(#0009,#0006)}
+.stat b.hot{background:#ffcc33;color:#3a2000}.stat b.rage{background:#d8202a;color:#fff;animation:pulse .5s infinite alternate}
+@media (orientation:portrait){
+  #topbar{flex-direction:column;align-items:stretch;gap:4px}
+  #mPanel{order:-2;text-align:center;margin:0 auto;width:86%;max-width:360px}
+  #mPanel .parts,#mPanel .stat{justify-content:center}
+  #timer{order:-3;position:absolute;left:0;top:0;width:auto;max-width:none;margin:0;font-size:15px;padding:2px 7px}
+  .bars:not(.right){max-width:62%}
+}
+/* 데미지 숫자: 흰색=일반, 주황=약점 부위, 속성색=약점 속성, 빨강=둘 다 (몬헌 나우식 색 구분) */
+.dmg{font-family:system-ui,sans-serif;letter-spacing:-.5px;-webkit-text-stroke:1px #0008;animation:dpop .9s cubic-bezier(.2,1.6,.4,1) forwards}
+.dmg.wpt{color:#ffa23a;font-size:25px}
+.dmg.elem{font-size:23px}
+.dmg.e-fire{color:#ff7a3a}.dmg.e-ice{color:#8fe0ff}.dmg.e-thunder{color:#ffe84a}.dmg.e-water{color:#5ab0ff}
+.dmg.both{color:#ff3a3a !important;font-size:30px}
+.dmg.crit{text-shadow:0 0 8px #7ff8ff,0 2px 0 #000}
+@keyframes dpop{0%{transform:translate(-50%,-50%) scale(.4);opacity:0}15%{transform:translate(-50%,-80%) scale(1.25);opacity:1}35%{transform:translate(-50%,-90%) scale(1)}100%{transform:translate(-50%,-160%) scale(.95);opacity:0}}
+@media (orientation:portrait){#line{top:auto;bottom:calc(150px + env(safe-area-inset-bottom));font-size:15px}}
+@media (orientation:landscape){#line{top:auto;bottom:22px;font-size:15px}}
