@@ -1,6 +1,6 @@
 # HANDOFF: 헌트 나우 (다른 AI가 이어서 작업하기 위한 메모)
 
-마지막 갱신: 2026-10-15 · 현재 버전: v4 (커밋 8696532, 2026-10-14)
+마지막 갱신: 2026-10-21 (문서만) · 이전 2026-10-15 · 현재 버전: v4 (커밋 8696532, 2026-10-14)
 플레이: https://junsa80.github.io/hunt-now/ · 저장소: https://github.com/junsa80/hunt-now
 
 ## 원칙 (사용자 규칙)
@@ -31,3 +31,9 @@
 1. 실제 폰 테스트 피드백 반영(조작감·프레임).
 2. 동료별 짧은 대사와 해금형 개인 스토리.
 3. 신규 몬스터 3종 2D 일러스트.
+
+## 인수인계 메모 (2026-10-21, GrokBot, 문서만 · 게임 코드 변경 없음)
+- 새로 온 AI는 `AI_START.md`부터 읽기. `docs/handoff-v4-notes-2026-10-14.md`는 v3·v4 변경 요약(작업 상자에만 있던 메모).
+- 테스트 실행: Node 20+, `npm i puppeteer-core@24`, Chrome/Chromium. `python3 -m http.server 18923` 띄운 뒤 `NODE_PATH=<...>/node_modules URL=http://127.0.0.1:18923/ SHOTS=/tmp/shots node test/touch-v2.js` (41항목), `test/feel-v4.js` (23항목). 기본 SHOTS 경로(/workspace/artifacts/...)는 Grok Bot 작업 상자 전용이라 새 환경에선 SHOTS를 꼭 지정.
+- 아직 남은 일: 동료 방어구, 필드 장면, 개인 스토리, 클라우드 동기화, 신규 3종 2D 일러스트, 실제 폰 테스트.
+- 브랜치: `main`만 실사용. `access-check-20261020`(쓰기 권한 확인용 빈 커밋)은 사용자 승인 후 삭제 예정.
