@@ -1,10 +1,11 @@
 // 동료 1명 편성 기준 해석 시뮬레이션: 몬스터 6종 × 특성(없음+6) = 42 상황에서 "정화 점수 기대치"를 비교.
 // 실제 전투를 돌리는 게 아니라 synergy.js 수치 + 단순 사냥 모델(DPS·부위·피격)로 계산. 몬스터 고유 내성은 data.js 속성 그대로.
 import { NICHE, MODS, MOD_KEYS, teamFx } from '../synergy.js';
-import { SPECIES } from '../data.js';
+import { SPECIES, WEAPON_TYPES, WEAPON_ORDER } from '../data.js';
+import { MENTOR, mentorPassive } from '../mentor.js';
 const SP = Object.keys(SPECIES), OUT = {};
 function hunt(compSp, monSp, mod, wtype = 'sns') {
-  const S = SPECIES[monSp], N = NICHE[compSp], { fx } = teamFx([{ species: compSp, role: 'dealer' }], wtype);
+  const S = SPECIES[monSp], N = NICHE[compSp], { fx } = teamFx([{ species: compSp, role: 'dealer' }], wtype); if (MENTOR[compSp].w === wtype) fx.atk += mentorPassive({ level: 6 }); // 스승 패시브(Lv6, 훈련 전)
   let hp = S.hp * 2 * (mod === 'thick' ? 1.35 : 1); const ward = mod === 'ward' ? 0.5 : 1;
   const compElem = SPECIES[compSp].elem, weak = compElem === S.weak ? 1.35 * (mod === 'ward' ? 0.75 : 1) : 1;
   const hunter = 20 * (1 + fx.atk) * (1 + fx.weakPart * 0.4) /* 약점 부위 타격 비율 40% */ * (1 + fx.statusHit * (mod === 'thick' ? 0.8 : 0.4) * ward); // 상태 이상 유지율 40%(거구는 오래 걸려 있어 80%)
@@ -20,6 +21,10 @@ function hunt(compSp, monSp, mod, wtype = 'sns') {
   const sc = { time: Math.max(0, 20 * (1 - t / 75)), hp: Math.max(0, 20 * (1 - taken / 150)), parts: 30 * parts / S.parts.length, hits: Math.max(0, 15 - hits * 3), elem: weak > 1 ? 4 : 0 };
   return Math.round(Object.values(sc).reduce((a, b) => a + b, 0) * 10) / 10;
 }
+console.log('무기 ↔ 동료 매핑:'); console.table(SP.map(c => ({ 동료: SPECIES[c].short, 무기: WEAPON_TYPES[MENTOR[c].w].n, 역할: NICHE[c].n, 약점: NICHE[c].weak, 스승기술: MENTOR[c].tech })).concat([{ 동료: '(없음)', 무기: '해머', 역할: '헌터 전용', 약점: '-', 스승기술: '-' }]));
+const wb = {}; SP.forEach(c => wb[c] = 0); let tot = 0;
+for (const wt of WEAPON_ORDER) for (const m of SP) for (const mod of ['none', ...MOD_KEYS]) { const sc = SP.map(c => [c, hunt(c, m, mod, wt)]).sort((a, b) => b[1] - a[1]); wb[sc[0][0]]++; tot++; }
+console.log(`무기 7종 포함 ${tot} 상황 1위 횟수:`, JSON.stringify(wb), '최대 비율', Math.round(Math.max(...Object.values(wb)) / tot * 100) + '%');
 const best = {}; SP.forEach(c => best[c] = 0); const rows = [];
 for (const m of SP) for (const mod of ['none', ...MOD_KEYS]) { const sc = SP.map(c => [c, hunt(c, m, mod)]).sort((a, b) => b[1] - a[1]); best[sc[0][0]]++; rows.push({ m, mod, top: sc[0][0], s: sc[0][1], 2: sc[1][0] + ' ' + sc[1][1], low: sc[5][0] + ' ' + sc[5][1] }); }
 const avg = {}; for (const c of SP) { let s = 0, n = 0; for (const m of SP) for (const mod of ['none', ...MOD_KEYS]) { s += hunt(c, m, mod); n++; } avg[c] = Math.round(s / n * 10) / 10; }

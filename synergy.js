@@ -1,23 +1,25 @@
 // v5 동료 역할·시너지 (순수 데이터 + 계산. 브라우저·node 시뮬레이션 공용, DOM/Three 의존 없음)
 // 종마다 고유 역할(niche)과 약점이 있어 "만능 최강"이 없도록 설계. 수치는 test/sim-comp.mjs로 점검.
 export const NICHE = {
-  wolf: { n: '부위 파괴', icon: '🪓', d: '파티 부위 피해 +45%', weak: '받는 피해 +15%', fx: { part: 0.45 }, self: { dmgTaken: 1.15 } },
-  witch: { n: '빙결 세팅', icon: '❄', d: '상태 이상 중인 몬스터에 헌터 피해 +20%', weak: 'HP -15%', fx: { statusHit: 0.2 }, self: { hp: 0.85 } },
-  drake: { n: '탱커', icon: '🛡', d: '도발로 공격을 끌어 헌터 받는 피해 -18%', weak: '공격 -25%', fx: { guardAll: 0.18 }, self: { atk: 0.75 } },
-  siren: { n: '회복', icon: '💧', d: '파티 자동 회복(초당 최대 HP 0.4%)', weak: '공격 -20%', fx: { regen: 0.004 }, self: { atk: 0.8 } },
-  harpy: { n: '기동', icon: '🪶', d: '완벽 회피 판정 +0.1초 · 완벽 회피 시 특수기 +8', weak: 'HP -20%', fx: { pd: 0.1, pdSp: 8 }, self: { hp: 0.8 } },
-  kitsune: { n: '약점 노출', icon: '🦊', d: '약점 부위 피해 +30% · 분노한 몬스터 피해 -50%', weak: '방어 -30%', fx: { weakPart: 0.3, rage: 0.5 }, self: { def: 0.7 } },
+  wolf: { n: '대검 · 부위 파괴', icon: '⚔', d: '파티 부위 피해 +45%', weak: '받는 피해 +15%', fx: { part: 0.45 }, self: { dmgTaken: 1.15 } },
+  witch: { n: '활 · 원거리 빙결', icon: '🏹', d: '상태 이상 중인 몬스터에 헌터 피해 +20%', weak: 'HP -15%', fx: { statusHit: 0.2 }, self: { hp: 0.85 } },
+  drake: { n: '랜스 · 탱커', icon: '🛡', d: '도발로 공격을 끌어 헌터 받는 피해 -18%', weak: '공격 -25%', fx: { guardAll: 0.18 }, self: { atk: 0.75 } },
+  siren: { n: '한손검 · 회복 지원', icon: '🗡', d: '파티 자동 회복(초당 최대 HP 0.4%)', weak: '공격 -20%', fx: { regen: 0.004 }, self: { atk: 0.8 } },
+  harpy: { n: '쌍검 · 기동', icon: '✦', d: '완벽 회피 판정 +0.1초 · 완벽 회피 시 특수기 +8', weak: 'HP -20%', fx: { pd: 0.1, pdSp: 8 }, self: { hp: 0.8 } },
+  kitsune: { n: '태도 · 약점 노출', icon: '🌙', d: '약점 부위 피해 +30% · 분노한 몬스터 피해 -50%', weak: '방어 -30%', fx: { weakPart: 0.3, rage: 0.5 }, self: { def: 0.7 } },
 };
 // 무기 × 동료 조합 (이름 붙은 작은 보너스)
+// v5.1 교차 무기 콤보: 헌터 무기와 '다른' 무기를 쓰는 동료의 조합 (동료 무기는 MENTOR 기준: 루가 대검·셀레스 활·드라카 랜스·마리나 한손검·코하쿠 태도·실피 쌍검)
 export const WEAPON_SYN = [
   { w: ['gs', 'hammer'], sp: 'witch', n: '얼음 망치질', d: '상태 이상 중 헌터 피해 +15% 추가', fx: { statusHit: 0.15 } },
   { w: ['db', 'sns'], sp: 'drake', n: '번개 연쇄', d: '헌터 공격 +10%', fx: { atk: 0.1 } },
   { w: ['bow'], sp: 'harpy', n: '바람 화살', d: '헌터 공격 +10%', fx: { atk: 0.1 } },
-  { w: ['lance'], sp: 'drake', n: '이중 방벽', d: '받는 피해 -10% 추가', fx: { guardAll: 0.1 } },
-  { w: ['ls'], sp: 'kitsune', n: '여우 기인', d: '약점 부위 피해 +15% 추가', fx: { weakPart: 0.15 } },
-  { w: ['hammer', 'gs'], sp: 'wolf', n: '분쇄', d: '부위 피해 +20% 추가', fx: { part: 0.2 } },
-  { w: ['sns', 'lance'], sp: 'siren', n: '물의 방패', d: '회복량 +50%', fx: { regen: 0.003 } },
-  { w: ['db', 'ls'], sp: 'harpy', n: '질풍 연격', d: '완벽 회피 판정 +0.06초 추가', fx: { pd: 0.06 } },
+  { w: ['hammer'], sp: 'drake', n: '대지 울림', d: '받는 피해 -10% 추가', fx: { guardAll: 0.1 } },
+  { w: ['bow', 'lance'], sp: 'wolf', n: '원근 협공', d: '부위 피해 +15% 추가', fx: { part: 0.15 } },
+  { w: ['hammer'], sp: 'wolf', n: '분쇄', d: '부위 피해 +20% 추가', fx: { part: 0.2 } },
+  { w: ['lance', 'gs'], sp: 'siren', n: '물의 방패', d: '회복량 +50%', fx: { regen: 0.002 } },
+  { w: ['ls'], sp: 'harpy', n: '질풍 연격', d: '완벽 회피 판정 +0.06초 추가', fx: { pd: 0.06 } },
+  { w: ['db', 'bow'], sp: 'kitsune', n: '여우불 표식', d: '약점 부위 피해 +15% 추가', fx: { weakPart: 0.15 } },
 ];
 // 동료 조합 (2~3명). 서로 다른 역할(딜러/탱커/힐러/버퍼/디버퍼)일수록 보너스
 export const PAIR_SYN = [
