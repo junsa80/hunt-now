@@ -114,8 +114,10 @@ const results = []; const ok = (name, pass, info = '') => { results.push({ name,
   await page2.goto(URL); await sleep(1500); page = page2;
   const mg = await ev(page, () => { const s = HN.save; return { v: s.v, comps: s.comps.map(c => c.name), party: s.party, w: s.weapons.length, hide: s.mats['wolf:hide:1'] || 0, hide2: s.mats['wolf:hide:2'] || 0, notice: s.notice || '', lvl: s.weapons[0].lvl, gsFire: s.weapons.some(w => w.type === 'gs' && w.elem === 'fire') }; });
   ok('v2→v3 이관: 종마다 최강 1명 유지', mg.v === 4 && mg.comps.join() === '미나,세라' && mg.party.join() === 'c4,c6', JSON.stringify(mg.comps) + ' party ' + mg.party);
-  ok('v2→v3 이관: 중복분 소재 전환 + 알림 + 기존 무기 유지', mg.hide >= 4 && mg.hide2 >= 3 && mg.notice.includes('루루') && mg.w === 7 && mg.lvl === 3 && mg.gsFire, `wolf 가죽 하급 1→${mg.hide}, 중급 ${mg.hide2}, 무기 ${mg.w}`);
+  ok('v2→v3 이관: 중복분 소재 전환 + 알림 + 기존 무기 유지', mg.hide >= 4 && mg.hide2 >= 3 && mg.notice.includes('루루') && mg.w >= 7 && mg.lvl === 3 && mg.gsFire, `wolf 가죽 하급 1→${mg.hide}, 중급 ${mg.hide2}, 무기 ${mg.w}`);
   await page.screenshot({ path: OUT + '/port-08-migration-notice.png' });
+  await page.click('[data-hero="aria"]'); await page.click('[data-act="heroOk"]'); await sleep(200); // v5: 기존 저장은 주인공 1회 선택
+  while (await ev(page, () => !!document.querySelector('[data-beat]'))) { await ev(page, () => document.querySelector('[data-beat]').click()); await sleep(150); }
   await page.click('[data-act="ack"]'); await sleep(200);
   ok('알림 확인 후 사라짐', await ev(page, () => !HN.save.notice && !document.querySelector('.notice')));
   await ev(page, () => { const s = HN.save; s.party = ['c4', 'c6']; }); await startHunt(page, 'ls');
