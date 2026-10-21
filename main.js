@@ -855,6 +855,7 @@ requestAnimationFrame(loop);
 
 // ───────── 사냥 종료/결과 ─────────
 let lastResult = null;
+const FAIL_SHARE = (d) => 0.1 + 0.2 * Math.min(1, Math.max(0, d)); // 실패 시 승리 보상 대비 10~30%
 function endHunt(win) {
   if (!G || G.done) return; G.done = true; G.over = true;
   if (G.train) { const T = G.train, done = save.mentor[T.sp] >= 1; persist(); setTimeout(() => { teardown(); renderTrain(); ui(`<div class="op"><h1>${done ? '✔ 훈련 완료' : '훈련 종료'}</h1><p>${done ? `${T.name}: "잘 따라 했어. 이제 ${MENTOR[T.sp].tech} 1단이야."<br><span class="note">${josaName('{n}을', T.name)} 편성하고 ${josaName('{n}을', WEAPON_TYPES[MENTOR[T.sp].w].n)} 들면 헌터 공격 +${TECH_T1 * 100}%</span>` : `${T.done.length}/${T.moves.length} 동작 성공. 언제든 다시 해 볼 수 있어요.`}</p><div class="row"><button class="btn" data-act="village">동료로</button></div></div>`, 'village gear op-wrap'); tab = 'party'; }, 400); return; }
@@ -868,7 +869,9 @@ function endHunt(win) {
   const drops = {}; const add = (k, n) => { drops[k] = (drops[k] || 0) + n; };
   for (const m of mons) { const q = qualOf(m.lvl), dmgR = 1 - m.hp / m.maxHp;
     if (win) { add(`${m.sp}:hide:${q}`, 2 + Math.floor(m.lvl / 2)); for (const pt of m.parts) if (pt.broken) add(`${m.sp}:${pt.key}:${q}`, 1 + (Math.random() < 0.4 ? 1 : 0)); if (Math.random() < 0.5) add(`${m.sp}:${m.parts[0].key}:${q}`, 1); }
-    else { if (dmgR > 0.3) add(`${m.sp}:hide:${q}`, 1); for (const pt of m.parts) if (pt.broken) add(`${m.sp}:${pt.key}:${q}`, 1); } }
+    else for (const pt of m.parts) if (pt.broken) add(`${m.sp}:${pt.key}:${q}`, 1); } // v5.3 실패: 파괴한 부위 소재 확정 1개
+  // v5.3 실패 위로 보상: 승리 경험치의 10~30% (가한 피해 비율에 비례)
+  const dmgAll = mons.reduce((a, m) => a + (1 - Math.max(0, m.hp) / m.maxHp), 0) / Math.max(1, mons.length), share = win ? 1 : FAIL_SHARE(dmgAll);
   // 이미 동료인 종은 정화 대신 보너스 소재
   const purInfo = mons.map(m => { const own = owned(m.sp), q = qualOf(m.lvl);
     if (win && own) { add(`${m.sp}:hide:${q}`, 2); add(`${m.sp}:${m.parts[0].key}:${q}`, sc.total >= PURIFY_NEED ? 2 : 1); }
@@ -876,9 +879,9 @@ function endHunt(win) {
   const rm = RARITY[node.rar || 0]?.drop || 1; if (win && rm > 1) for (const k in drops) drops[k] = Math.ceil(drops[k] * rm);
   if (win && node.fid && save.field) save.field.cleared.push(node.fid);
   for (const k in drops) addMat(k, drops[k]);
-  const xp = win ? 40 + node.lvl * 20 : 15 + node.lvl * 5 + st.broken * 5;
+  const xp = Math.round((40 + node.lvl * 20) * share);
   save.hrXp += xp; let ranked = false; while (save.hrXp >= save.hr * 100) { save.hrXp -= save.hr * 100; save.hr++; ranked = true; }
-  const compXp = win ? 30 : 12; save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) { c.xp = (c.xp || 0) + Math.round(compXp * xpMul(c, save.comps)); while (c.xp >= c.level * 60 && c.level < 10 + c.potential * 4) { c.xp -= c.level * 60; c.level++; } } });
+  const compXp = Math.round(30 * share); save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) { c.xp = (c.xp || 0) + Math.round(compXp * xpMul(c, save.comps)); while (c.xp >= c.level * 60 && c.level < 10 + c.potential * 4) { c.xp -= c.level * 60; c.level++; } } });
   save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) save.bond[c.species] = (save.bond[c.species] || 0) + (win ? 2 : 1); });
   save.stats.hunts++; if (win) save.stats.wins++; else save.stats.fails++;
   st.dur = G.t; const noHit = win && st.hits === 0, clean = win && st.perfect >= 3, bo = (k, n) => { add(k, n); addMat(k, n); }; // 무피격·완벽 회피 3회 보상
@@ -887,7 +890,7 @@ function endHunt(win) {
   const tip = worst ? { k: worst[0], n: st.hitBy[worst[0]], d: Math.round(worst[1]) } : null;
   for (const m of mons) { const cd = codexOf(m.sp); cd.seen++; if (G.player.elem && G.player.elem !== 'none') cd.elems[G.player.elem] = 1; for (const k in st.hitBy) cd.hitBy[k] = (cd.hitBy[k] || 0) + st.hitBy[k]; if (win) { cd.won++; cd.maxLvl = Math.max(cd.maxLvl, m.lvl); } }
   persist();
-  lastResult = { win, sc, need: PURIFY_NEED, canPurify: purInfo.some(x => x.ok), purInfo, drops, xp, ranked, mons: mons.map(m => ({ sp: m.sp, lvl: m.lvl })), st, purified: false, tip, noHit, clean };
+  lastResult = { win, sc, need: PURIFY_NEED, canPurify: purInfo.some(x => x.ok), purInfo, drops, xp, ranked, mons: mons.map(m => ({ sp: m.sp, lvl: m.lvl })), st, purified: false, tip, noHit, clean, share, dmgR: dmgAll, timeout: !win && G.time <= 0 };
   setTimeout(() => { teardown(); showResult(); }, 400);
 }
 function teardown() { if (!G) return; clearArrows(); touches.clear(); input.mx = input.mz = 0; input.dodgeBuf = null; input.tapBuf = -9; $('stick').style.opacity = 0; [...G.allies, ...G.monsters].forEach(e => scene.remove(e.model)); [...telegraphs].forEach(killTele); G = null; $('hud').classList.add('hidden'); lockMark.visible = weakMark.visible = false; setRing(0); input.atkDown = false; }
@@ -1056,7 +1059,14 @@ function storyScreen() { const c = save.comps.find(x => x.id === storyComp); if 
 function showResult() {
   const r = lastResult, sc = r.sc, m0 = r.mons[0], S = S_[m0.sp]; S.img2 = spImg(m0.sp);
   const rows = [['남은 시간', sc.time, 20], ['남은 체력', sc.hp, 20], ['부위 파괴', sc.parts, 30], ['피격 횟수 (' + r.st.hits + '회)', sc.hits, 15], ['속성 상성', sc.elem, 15]];
-  const purifyBlock = !r.win ? `<p>사냥 실패. 그래도 <b>경험치 +${r.xp}</b>${Object.keys(r.drops).length ? '와 일부 소재' : ''}를 얻었어요. 다음엔 붉은 범위가 노랗게 차오를 때 회피해 보세요.</p>` :
+  if (!r.win) { const dr = Object.entries(r.drops);
+    ui(`<div class="card"><img src="${S.img2}" alt="" style="width:90px;height:120px"><div class="t"><h1>사냥 실패${r.timeout ? ' (시간 초과)' : ''}</h1>"${S.lines.lose}"</div></div>
+    <h2>위로 보상</h2><div class="note fail-rw"><p>획득: ${dr.length ? dr.map(([k, n]) => `<b>${matName(k)} ×${n}</b> (부위 파괴)`).join('<br>') : '소재 없음 — 부위를 파괴하면 실패해도 소재를 챙길 수 있어요.'}</p>
+    <p>헌터 경험치 <b>+${r.xp}</b> <span class="note">(가한 피해 ${Math.round(r.dmgR * 100)}% → 토벌 보상의 ${Math.round(r.share * 100)}%)</span>${r.ranked ? ` · <b>HR ${save.hr} 달성!</b>` : ''}</p>
+    <p class="note">완벽 회피 ${r.st.perfect}회 · 부위 파괴 ${r.st.broken} · 정화는 토벌 성공 시에만 가능</p></div>
+    ${r.tip ? `<p class="note">📓 가장 아팠던 공격: <b>${MOVE_INFO[r.tip.k]?.[0] || r.tip.k}</b> ×${r.tip.n} (피해 ${r.tip.d}) — ${MOVE_INFO[r.tip.k]?.[2] || ''}</p>` : ''}
+    <div class="row" style="margin-top:12px"><button class="btn" data-act="village">마을로</button></div>`); return; }
+  const purifyBlock = !r.win ? '' :
     r.purified ? `<div class="xform"><img class="xb" src="${spImg(r.purSp)}" alt=""><img class="xg" src="${compImg(save.comps.find(c => c.id === r.purId))}" alt=""><div class="xl"></div>${Array.from({ length: 12 }, (_, i) => `<i class="sh" style="--a:${i * 30}deg;--d:${60 + (i % 3) * 25}px"></i>`).join('')}</div><p class="big">✨ ${r.purified} 정화 성공!</p><p class="note">${PURIFY_SCENE[r.purSp]}</p><p>${r.purified}: "${S_[r.purSp].lines.purify}"</p>` :
     (r.mons.map((m, i) => { const pi = r.purInfo[i], Sm = S_[m.sp];
       if (pi.own) return `<p>✔ <b>${Sm.short}</b>는 이미 동료예요. 정화 대신 <b>보너스 소재</b>를 받았어요.</p><p class="note">${PURIFY_FAIL.own}</p>`;
