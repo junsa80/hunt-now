@@ -1,0 +1,35 @@
+// v5.2: 히트스톱 표·물약 제한·마시기 무방비·사냥 노트·결과 팁·한 화면·fps (헤드리스, 실제 폰 아님)
+const puppeteer = require('puppeteer-core');
+const URL = process.env.URL || 'http://127.0.0.1:18923/', OUT = process.env.SHOTS || '/workspace/artifacts/hunt-now-v52';
+const sleep = (ms) => new Promise(r => setTimeout(r, ms)); let pass = 0, fail = 0; const ok = (n, c, i = '') => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL ') + n + (i ? ' — ' + i : '')); };
+(async () => {
+  const browser = await puppeteer.launch({ headless: 'new', executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const page = await browser.newPage(); const errors = [];
+  await page.emulate({ viewport: { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, userAgent: 'Mozilla/5.0 (Linux; Android 14) Mobile' });
+  page.on('pageerror', e => errors.push(e.message)); const ev = (f, ...a) => page.evaluate(f, ...a);
+  const noScroll = () => ev(() => { const u = document.getElementById('ui'); return u.scrollHeight <= u.clientHeight + 2 && document.documentElement.scrollHeight <= innerHeight + 2; });
+  await page.goto(URL); await ev(() => localStorage.clear()); await page.reload(); await sleep(1500); await ev(() => HN.skipIntro());
+  const hs = await ev(() => HN.hitstopTable()); console.log('히트스톱(ms) 가벼운/막타/강공:', JSON.stringify(hs));
+  ok('히트스톱 40~140ms 범위(무기별)', Object.values(hs).every(([a, b, c]) => a >= 40 && c <= 142 && a < c), '');
+  await ev(() => HN.startHuntNode({ id: 0, lvl: 4, mons: [{ sp: 'drake', lvl: 4 }] })); await sleep(2500);
+  ok('물약 버튼 3개', await ev(() => document.getElementById('bPot').textContent.includes('3')));
+  await ev(() => { HN.G.time = 999; HN.G.player.hp = 50; }); 
+  const d1 = await ev(() => HN.drink()); await sleep(150); const st = await ev(() => HN.G.player.state);
+  ok('마시는 동안 무방비(drink 상태)', d1 && st === 'drink', st); await page.screenshot({ path: OUT + '/v52-01-drink.png' });
+  ok('마시는 중 회피 불가', await ev(() => !HN.roll(0)));
+  await ev(() => { HN.G.player.invul = 99; HN.G.player.iframe = 99; }); for (let i = 0; i < 40 && await ev(() => HN.G.potions > 0); i++) { await ev(() => { HN.G.player.invul = 99; HN.G.player.iframe = 99; HN.drink(); }); await sleep(300); } await sleep(1700);
+  ok('물약 3개 제한', await ev(() => HN.G.potions === 0 && HN.drink() === false));
+  ok('사냥 HUD 한 화면', await noScroll());
+  await sleep(3000); const fps = await ev(() => HN.fps); console.log('헤드리스 fps(소프트웨어 렌더링):', fps);
+  await page.screenshot({ path: OUT + '/v52-02-hunt-tell.png' });
+  await ev(() => HN.endHunt(false)); await sleep(1200);
+  ok('결과 화면 한 화면', await noScroll()); await page.screenshot({ path: OUT + '/v52-03-result.png' });
+  await ev(() => { HN.village(); document.querySelector('[data-tab="codex"]').click(); }); await sleep(300);
+  ok('도감에 패턴 파악 수', await ev(() => /패턴 \d+\/\d+ 파악/.test(document.body.textContent)));
+  await ev(() => document.querySelector('[data-note="drake"]').click()); await sleep(300);
+  ok('사냥 노트: 서명 기술·부위 효과', await ev(() => /사냥 노트/.test(document.body.textContent) && /비행 기술 봉인|미파괴/.test(document.body.textContent)));
+  ok('노트 한 화면', await noScroll()); await page.screenshot({ path: OUT + '/v52-04-notebook.png' });
+  ok('구 저장 이전(codex 칸 추가)', await ev(() => { const s = HN.migrate({ v: 4, hr: 2, codex: { wolf: { seen: 1, won: 1, maxLvl: 2 } }, weapons: [], comps: [], party: [], settings: {}, equip: {} }); return !!s.codex.wolf.moves && !!s.codex.wolf.hitBy; }));
+  ok('JS 오류 없음', !errors.length, errors.slice(0, 2).join(' | '));
+  console.log(`${pass}/${pass + fail} 통과`); await browser.close(); process.exit(fail ? 1 : 0);
+})();
