@@ -182,3 +182,6 @@ h1{margin:4px 0 8px;font-size:24px}h2{font-size:18px;margin:14px 0 6px}
 @keyframes xg{0%,52%{opacity:0;transform:scale(.85)}75%,100%{opacity:1;transform:scale(1)}}
 @keyframes xl{0%,35%{opacity:0}50%{opacity:1}80%,100%{opacity:0}}
 @keyframes sh{0%,44%{opacity:0;transform:translate(-50%,-50%) rotate(var(--a)) translateY(0)}50%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) rotate(var(--a)) translateY(calc(var(--d) * -1.6))}}
+/* v5.2 물약 · 피해 숫자 크기 */
+.rb.small.pot{right:100px;bottom:66px;font-size:12px;background:#2f7a4a}
+.dmg.big{font-size:30px;font-weight:900}.dmg.small{font-size:14px;opacity:.85}.dmg.heal{color:#7dff9a}

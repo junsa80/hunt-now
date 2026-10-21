@@ -179,6 +179,7 @@ export function animate(root, a) {
       break; }
     case 'strike': { r.armL.sh.rotation.x = r.armR.sh.rotation.x = 0.8; r.torso.rotation.x = 0.5; r.body.position.y = -0.08; break; }
     case 'guard': if (a.wtype === 'lance') { r.armL.sh.rotation.x = -1.3; r.armL.sh.rotation.z = 0.5; r.armR.sh.rotation.x = -1.3; r.torso.rotation.x = 0.25; r.legL.sh.rotation.x = -0.6; r.legR.sh.rotation.x = 0.6; r.body.position.y = -0.08; break; } { r.armL.sh.rotation.x = -1.4; r.armL.sh.rotation.z = 0.6; r.torso.rotation.x = 0.15; r.legL.sh.rotation.x = -0.4; r.legR.sh.rotation.x = 0.4; break; }
+    case 'drink': { const k = Math.min(1, p * 4); r.armR.sh.rotation.x = -2.3 * k; r.armR.el.rotation.x = -1.4 * k; r.head.rotation.x = -0.55 * k; r.torso.rotation.x = -0.15 * k; r.body.position.y = Math.sin(T * 9) * 0.02; break; } // 물약 마시기(무방비)
     case 'cheer': { r.armL.sh.rotation.z = -2.6; r.armR.sh.rotation.z = 2.6; r.body.position.y = Math.abs(Math.sin(T * 8)) * 0.12; break; }
   }
   if (a.flinch > 0) { const f = a.flinch; r.torso.rotation.x -= 0.45 * f; r.head.rotation.x -= 0.35 * f; r.body.position.z -= 0.1 * f; r.armL.sh.rotation.z -= 0.4 * f; r.armR.sh.rotation.z += 0.4 * f; }

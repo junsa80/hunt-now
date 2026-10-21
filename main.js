@@ -41,6 +41,7 @@ function migrate(s) {
     s.notice = (s.notice ? s.notice + ' ' : '') + 'v5 업데이트: 동료 방어구(동료 → 장비), 필드 지도, 동료 개인 스토리가 추가됐어요. 기존 기록은 그대로예요.'; }
   if (s.settings.dlg === undefined) s.settings.dlg = true; if (s.settings.tips === undefined) s.settings.tips = true; s.mUsed = s.mUsed || {}; s.mentor = s.mentor || {};
   if (s.opened === undefined) { s.opened = true; s.hero = s.hero || null; s.beats = BEATS.filter(b => b.hr < (s.hr || 1)).map(b => b.hr); } // 기존 플레이어: 오프닝 건너뛰고 주인공만 한 번 고름
+  s.codex = s.codex || {}; for (const k in s.codex) { const c = s.codex[k]; c.moves = c.moves || {}; c.broke = c.broke || {}; c.elems = c.elems || {}; c.hitBy = c.hitBy || {}; } // v5.2: 사냥 노트 칸 추가
   if (!s.settings.quality) s.settings.quality = 'auto'; // v4: 화질 설정 (저장 버전 유지, 기본값만 추가)
   return s;
 }
@@ -217,7 +218,7 @@ let pollInput = () => {};
   pollInput = () => { const n = nowT(); for (const t of touches.values()) if (t.mode === 'pending' && n - t.t0 > 0.2) { t.mode = 'hold'; setHold(); }
     if (keys.KeyJ && !keys.jHold && n - keys.jT > 0.2) { keys.jHold = true; setHold(); } };
   const btn = (id, fn) => { const b = $(id); b.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); fn(); }, { passive: false }); b.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); fn(); }); };
-  btn('bSp', () => { input.sp = true; }); btn('bTarget', () => { input.target = true; });
+  btn('bSp', () => { input.sp = true; }); btn('bPot', () => drinkPotion()); btn('bTarget', () => { input.target = true; });
   btn('bDodge', () => { input.dodgeBuf = { dx: input.mx * 50, dy: input.mz * 50, t: nowT() }; logG('dodgeBtn'); });
   const kmove = () => { const x = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), z = (keys.KeyS ? 1 : 0) - (keys.KeyW ? 1 : 0); keys.any = !!(x || z); if (keys.any || !touches.size) { input.mx = x; input.mz = z; } };
   addEventListener('keydown', e => { if (e.repeat) return; keys[e.code] = 1;
@@ -232,6 +233,7 @@ let G = null; // 현재 사냥
 const HUNT_TIME = 75; // v5: 몬헌 나우식 75초 사냥
 const COMP_CAP = 0.25;
 const MSCALE = 1.22; // 몬스터를 헌터보다 확실히 크게 (몬헌 나우의 체급 차)
+const CANCEL_AT = { sns: 0.4, db: 0.4, bow: 0.4, ls: 0.6, lance: 0.6, gs: 0.95, hammer: 0.9 }; // 회피 캔슬 가능 시점(동작 비율)
 const WEIGHT = { sns: 0.6, db: 0.5, ls: 0.85, bow: 0.5, lance: 0.9, gs: 1.45, hammer: 1.3 }; // 히트스톱·흔들림·타격음 무게
 function weaponById(id) { return save.weapons.find(w => w.id === id); }
 function armorById(id) { return save.armors.find(a => a.id === id); }
@@ -264,7 +266,7 @@ const WMODEL = { sns: { weapon: 'sns', shield: 0xb04050 }, gs: { weapon: 'gs' },
 // 스승 보너스 계산 (같은 무기 + 그 동료 편성)
 function mentorBonus(partyC, wtype) { const ex = partyC.filter(c => MENTOR[c.species].w === wtype); let atk = 0, pd = 0, sp = 0, who = null, tier = 0;
   for (const c of ex) { const t = mentorTier(c, save); const a = mentorPassive(c) + (t >= 1 ? TECH_T1 : 0) + (t >= 2 ? 0.04 : 0); if (a > atk) { atk = a; who = c; tier = t; pd = t >= 2 ? 0.03 : 0; sp = t >= 3 ? 0.15 : 0; } } return { atk, pd, sp, who, tier }; }
-function startHunt(node) { $("trainBox").classList.add("hidden"); // 이전 훈련 안내가 남지 않게
+function startHunt(node) { $("trainBox").classList.add("hidden"); $("bPot").textContent = "물약 3"; // 이전 훈련 안내가 남지 않게
   ui(''); $('hud').classList.remove('hidden');
   const w = weaponById(save.equip.weapon), arm = armorById(save.equip.armor), wt = WEAPON_TYPES[w.type];
   const wm = WMODEL[w.type];
@@ -282,15 +284,15 @@ function startHunt(node) { $("trainBox").classList.add("hidden"); // 이전 훈�
     e.hp = e.maxHp; e.pos.set(rnd(-3, 3), 0, 9 + rnd(0, 2)); e.face = Math.PI; allies.push(e); }
   const monsters = node.mons.map((mn, i) => { const S = SPECIES[mn.sp], L = mn.lvl;
     const m = buildBeast(mn.sp, S.look, (S.scale + L * 0.02) * MSCALE); // v5.1: 적은 흐림에 삼켜진 짐승형
-    const hp = Math.round(S.hp * (1 + 0.35 * (L - 1)) * (node.mons.length > 1 ? 0.75 : 1) * (node.mod === 'thick' && i === 0 ? 1.35 : 1));
-    const e = makeEntity(m, { team: 1, sp: mn.sp, S, lvl: L, name: `${S.short} Lv${L}`, maxHp: hp, dmg: S.dmg * (1 + 0.15 * (L - 1)), speed: S.speed * (1 + 0.03 * L), elem: S.elem, weak: S.weak, ai: 'move', aiT: 1.5 + i, atkCd: 1.6 + i * 1.5, cur: null, aggro: null, taunt: 0, defDown: 0, slow: 0,
+    const hp = Math.round(S.hp * 2.1 * (1 + 0.4 * (L - 1)) * (node.mons.length > 1 ? 0.75 : 1) * (node.mod === 'thick' && i === 0 ? 1.35 : 1));
+    const e = makeEntity(m, { team: 1, sp: mn.sp, S, lvl: L, name: `${S.short} Lv${L}`, maxHp: hp, dmg: S.dmg * (1 + 0.2 * (L - 1)), speed: S.speed * (1 + 0.03 * L), elem: S.elem, weak: S.weak, ai: 'move', aiT: 1.5 + i, atkCd: 1.6 + i * 1.5, cur: null, aggro: null, taunt: 0, defDown: 0, slow: 0,
       parts: S.parts.map(p => ({ ...p, hp: Math.round(hp * 0.22), max: Math.round(hp * 0.22), broken: false })) });
     const glow = new THREE.Mesh(new THREE.SphereGeometry(0.75, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff2030, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending })); glow.scale.set(1, 1.6, 1); glow.position.y = 1.0; glow.visible = false; m.add(glow); e.glow = glow;
     e.mod = i === 0 ? node.mod || null : null; if (e.mod === 'fury') e.dmg *= 1.35; if (e.mod === 'rage') { e.enraged = true; e.rageDone = true; }
     armorize(m, S, L); e.outl = ownOutline(m); e.flinch = 0; e.turnRate = 2.4; e.lastK = null;
     e.hp = hp; e.pos.set((i - (node.mons.length - 1) / 2) * 5, 0, -6); e.face = 0; return e; });
   G = { node, player, allies, monsters, time: HUNT_TIME, t: 0, hitstop: 0, slowmo: 0, shake: 0, lock: monsters[0], camYaw: Math.PI, camPos: new THREE.Vector3(0, 5, 16), over: false,
-    stats: { hits: 0, broken: 0, weakHits: 0, totalHits: 0, dealt: 0, perfect: 0, guards: 0 }, buff: 0, log: [], sp: 30, syn: TS.fx, synNames: TS.named, spMul: 1 + RS.fx.sp + MB.sp };
+    stats: { hits: 0, broken: 0, weakHits: 0, totalHits: 0, dealt: 0, perfect: 0, guards: 0, hitBy: {}, hitDmg: {}, winDealt: 0, outDealt: 0, potions: 0 }, potions: 3, buff: 0, log: [], sp: 30, syn: TS.fx, synNames: TS.named, spMul: 1 + RS.fx.sp + MB.sp };
   if (TS.named.length && !node.train) setTimeout(() => G && banner('시너지: ' + TS.named.join(' · '), 1400), 1100);
   if (monsters[0].mod && !node.train) setTimeout(() => G && say(`${MODS[monsters[0].mod].icon} ${MODS[monsters[0].mod].n} 개체 — ${MODS[monsters[0].mod].d}`), 5200);
   const first = monsters[0]; if (!node.train) say(first.S.lines.meet, first.S.short); sfx('win');
@@ -346,6 +348,7 @@ function applyStatus(e, el, amt) {
     popNum(e.pos, STATUS[el].n + '!', 'info'); burst(e.pos.clone().setY(1.2), elemColor(el), 16, 4);
     if (k === 'para' && e.team === 1) { e.ai = 'stun'; e.aiT = 2.2; clearMonsterTele(e); } }
 }
+function hitstopOf(wtype, heavy, fin) { const W = WEIGHT[wtype] || 1; return Math.min(0.14, heavy ? 0.07 + 0.05 * W : Math.max(0.04, 0.025 + 0.025 * W) + (fin ? 0.015 * W : 0)); } // 가벼운 타 40~61ms · 막타 +7~22ms · 모으기/강공 95~142ms
 function damageMonster(m, base, src, opt = {}) {
   if (!alive(m)) return;
   let dmg = base, cls = '';
@@ -354,7 +357,7 @@ function damageMonster(m, base, src, opt = {}) {
   if (m.ai === 'topple') dmg *= 1.3; // 다운 중 큰 피해 찬스
   cls = wpt && weak ? 'both' : wpt ? 'wpt' : weak ? 'elem' : ''; // 흰색=일반 · 주황=약점 부위 · 속성색=약점 속성 · 빨강=둘 다
   if (m.defDown > 0) dmg *= 1.25; if (G.buff > 0 && src.team === 0) dmg *= 1.25;
-  if (m.ai === 'stun') dmg *= 1.15;
+  if (m.ai === 'stun') dmg *= 1.15; if (m.ai === 'recover' && m.bigOpen) dmg *= 1.15; if (src.isPlayer && (m.ai === 'windup' || m.ai === 'strike') && !opt.heavy) dmg *= 0.6; // 공격 중엔 갑각에 튕김(가벼운 타) // 큰 기술 뒤 빈틈 보너스
   const Y = G.syn || {}; if (weak && m.mod === 'ward') dmg /= 1.2;
   if (src.isPlayer && Object.keys(m.status).length) dmg *= 1 + (Y.statusHit || 0) * (m.mod === 'ward' ? 0.5 : 1);
   if (src.isPlayer && wpt) dmg *= 1 + (Y.weakPart || 0);
@@ -363,19 +366,25 @@ function damageMonster(m, base, src, opt = {}) {
   dmg = Math.round(dmg * rnd(0.92, 1.08));
   m.hp = Math.max(0, m.hp - dmg); m.hitFlash = src.isPlayer ? 0.07 : 0; if (src.isPlayer) { G.stats.dealt += dmg; G.stats.totalHits++; } else if (src.team === 0) G.stats.compDealt = (G.stats.compDealt || 0) + dmg;
   if (opt.crit) cls += ' crit'; if (cls.includes('elem') || cls.includes('both')) cls += ' e-' + src.elem;
-  popNum(opt.at || m.pos, String(dmg), cls.trim());
+  popNum(opt.at || m.pos, String(dmg), (cls + (src.isPlayer && dmg >= (src.atk || 10) * 2.2 ? ' big' : src.isPlayer && dmg < (src.atk || 10) * 0.9 ? ' small' : '')).trim()); // 피해 크기만큼 숫자 크기
   const hp = (opt.at || m.pos.clone().setY(1.1 * m.S.scale)), w = src.isPlayer ? WEIGHT[src.wtype] || 1 : 0.5;
   burst(hp, src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xfff2c0, opt.heavy ? 18 : 8, opt.heavy ? 7 : 4);
   if (src.isPlayer && qLevel > 0) hitGlow(hp, opt.crit ? 0x9ff8ff : src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xffe0a0, opt.heavy || opt.crit ? 1.6 : 1);
   if (src.isPlayer) { fx.impact(hp, opt.crit ? 0x9ff8ff : src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xfff0c0, (0.7 + 0.45 * w) * (opt.heavy ? 1.35 : 1), wpt); if (wpt) sfx('weak'); }
-  if (m.ai !== 'topple' && m.ai !== 'roar') m.flinch = Math.max(m.flinch, src.isPlayer ? Math.min(1, 0.45 + 0.35 * w + (opt.heavy ? 0.3 : 0)) : 0.25);
+  // 포이즈: 공격 중(예비 동작·타격)엔 슈퍼아머 — 가벼운 타격엔 움찔하지 않음. 누적 피해가 문턱을 넘거나, 돌진 예비 동작 중 머리를 맞으면 끊김
+  const armored = m.ai === 'windup' || m.ai === 'strike' || m.ai === 'roar';
+  if (src.isPlayer) { const inWin = m.ai === 'recover' || m.ai === 'stun' || m.ai === 'topple'; if (inWin) G.stats.winDealt += dmg; else G.stats.outDealt += dmg; m.poise = (m.poise || 0) + dmg * (opt.heavy ? 1.6 : 1); }
+  if (m.ai !== 'topple' && m.ai !== 'roar' && (!armored || opt.heavy)) m.flinch = Math.max(m.flinch, src.isPlayer ? Math.min(1, 0.45 + 0.35 * w + (opt.heavy ? 0.3 : 0)) : 0.25);
+  if (src.isPlayer && alive(m) && m.hp > dmg) { const headCtr = wpt && m.ai === 'windup' && CHARGE_K.has(m.cur?.kind), poiseBreak = m.poise >= m.maxHp * 0.16;
+    if (headCtr || (poiseBreak && armored && m.ai !== 'roar')) { m.poise = 0; clearMonsterTele(m); m.cur = null; m.model.position.y = 0; m.ai = 'stun'; m.aiT = headCtr ? 2.2 : 1.3; G.stats.interrupts = (G.stats.interrupts || 0) + 1; banner(headCtr ? '머리 카운터! 기절' : '경직!', 900); G.hitstop = Math.max(G.hitstop, 0.12); G.shake = 0.5; vib([30, 20, 60]); }
+    else if (poiseBreak) { m.poise = 0; m.flinch = 1; } }
   if (src.elem && src.elem !== 'none') applyStatus(m, src.elem, (opt.heavy ? 34 : 14) * (weak ? 1.3 : 1));
   if (src.comp?.species === 'witch') applyStatus(m, 'ice', 6); if (src.comp?.species === 'kitsune') applyStatus(m, 'fire', 6);
   if (src.isPlayer && G.player.state !== 'special') G.sp = Math.min(100, G.sp + (opt.heavy ? 7 : 3.2));
   // 부위
   if (opt.part && !opt.part.broken) { const p = opt.part; p.hp -= dmg * (opt.heavy ? 1.4 : 1) * (1 + (G.syn?.part || 0)) * (m.mod === 'hard' ? 0.5 : 1);
-    if (p.hp <= 0) { p.broken = true; G.stats.broken++; setPartVisible(m, p, false); breakFx(m, p); topple(m, 3.4);
-      banner(`${p.n} 파괴!`); say(p === m.parts[0] ? m.S.lines.break : `크윽… 내 ${p.n}이…!`, m.S.short); sfx('brk'); vib([40, 30, 80]); G.shake = 0.5; G.hitstop = 0.12;
+    if (p.hp <= 0) { p.broken = true; G.stats.broken++; setPartVisible(m, p, false); breakFx(m, p); topple(m, 2.6);
+      banner(`${p.n} 파괴!` + (p.key === 'wing' ? ' 비행 기술 봉인' : p === m.parts[0] ? ' 숨결 약화' : '')); { const cd = codexOf(m.sp); cd.broke[p.key] = 1; } say(p === m.parts[0] ? m.S.lines.break : `크윽… 내 ${p.n}이…!`, m.S.short); sfx('brk'); vib([40, 30, 80]); G.shake = 0.5; G.hitstop = 0.12;
       burst(anchorWorld(m, p), 0xffd24a, 28, 8, 0.8); G.log.push(p.n + ' 파괴'); } }
   if (m.hp <= 0) killMonster(m);
 }
@@ -400,7 +409,7 @@ function breakFx(m, p) { const at = anchorWorld(m, p); fx.impact(at, 0xffd24a, 2
 function killMonster(m) { m.ai = 'down'; m.aiT = 0; m.state = 'down'; m.st = 0; clearMonsterTele(m); say(m.S.lines.win, m.S.short); banner('토벌!'); sfx('win'); G.hitstop = 0.2; G.slowmo = 0.6;
   if (G.lock === m) G.lock = nearestMonster(G.player.pos); if (G.monsters.every(x => !alive(x))) { const g = G; setTimeout(() => G === g && endHunt(true), 1800); } }
 function clearMonsterTele(m) { if (m.cur) { m.cur.teles.forEach(killTele); m.cur = null; } }
-function hurt(e, raw, el, from) {
+function hurt(e, raw, el, from, big = false) {
   if (!alive(e) || G.over) return;
   if (e.isPlayer && e.iframe > 0) { // 회피 성공
     if (G.t - e.rollStart < 0.3 + (G.syn?.pd || 0)) { if (!e._pd || G.t - e._pd > 0.5) { e._pd = G.t; G.stats.perfect++; noteMove('pd'); e.counter = 1.6; e.goldT = 0.9; G.sp = Math.min(100, G.sp + (12 + (G.syn?.pdSp || 0)) * G.spMul); G.slowmo = 0.35; $('flash').style.opacity = 0.5; setTimeout(() => $('flash').style.opacity = 0, 90); sfx('perfect'); vib(25); popNum(e.pos, '완벽 회피!', 'info'); $('counter').classList.remove('hidden'); } }
@@ -417,10 +426,11 @@ function hurt(e, raw, el, from) {
     if (from) e.vel.addScaledVector(fwd(angTo(from.pos, e.pos)), e.wtype === 'lance' ? 1.5 : 4); return; }
   if (e.comp?.species === 'drake') dmg *= 0.8;
   if (e.role === 'tank' && e.guard > 0) { dmg *= 0.3; popNum(e.pos, '가드', 'info'); }
+  if (e.isPlayer && big) dmg = clamp(dmg, e.maxHp * 0.25, e.maxHp * 0.4); // 큰 기술 = 체력 25~40%
   dmg = Math.round(dmg); e.hp = Math.max(0, e.hp - dmg); popNum(e.pos, '-' + dmg, 'hurt'); e.hitFlash = 0.15;
   if (el) applyStatus(e, el, 30);
-  if (e.isPlayer) { G.stats.hits++; e.state = 'hit'; e.st = 0; e.invul = 0.6; e.combo = -1; e.charge = 0; e.chargeLvl = 0; sfx('hurt'); vib(60); G.shake = Math.max(G.shake, 0.35);
-    if (from) { const k = fwd(angTo(from.pos, e.pos)); e.vel.addScaledVector(k, 8); } }
+  if (e.isPlayer) { G.stats.hits++; e.state = 'hit'; e.st = 0; e.kd = big; e.invul = big ? 1.4 : 0.6; if (big) { popNum(e.pos, '넘어짐!', 'info'); G.shake = 0.6; } e.combo = -1; e.charge = 0; e.chargeLvl = 0; sfx('hurt'); vib(60); G.shake = Math.max(G.shake, 0.35);
+    if (from) { const k = fwd(angTo(from.pos, e.pos)); e.vel.addScaledVector(k, big ? 14 : 8); } }
   else { e.invul = 0.4; if (e.state !== 'guard') { e.state = 'hit'; e.st = 0; } }
   if (e.hp <= 0) { e.state = 'down'; e.st = 0; if (e.isPlayer) { banner('쓰러졌다…'); { const g = G; setTimeout(() => G === g && endHunt(false), 1600); } G.over = true; } else popNum(e.pos, '전투 불능', 'info'); }
 }
@@ -438,7 +448,7 @@ function playerAttackHit(p, mult, heavy, opt = {}) {
     if (wt.ko && alive(m)) addKo(m, mult * (heavy ? 6 : 4) * (part && HEAD_PARTS.includes(part.key) ? 1.5 : 1));
     any = true; }
   const W = WEIGHT[p.wtype] || 1;
-  if (any) { G.hitstop = Math.max(G.hitstop, (heavy ? 0.075 : 0.032) * W + (opt.special ? 0.02 : 0)); G.lastHitstop = G.hitstop; G.shake = Math.max(G.shake, (heavy ? 0.28 : 0.08) * W); G.shakeDir = p.face; sfx(heavy ? 'heavy' : 'hit', W); vib(Math.round((heavy ? 32 : 10) * W)); if (crit) { p.counter = 0; $('counter').classList.add('hidden'); }
+  if (any) { G.hitstop = Math.max(G.hitstop, hitstopOf(p.wtype, heavy, p.combo >= (wt.combo?.length || 9) - 1) + (opt.special ? 0.02 : 0)); G.lastHitstop = G.hitstop; G.shake = Math.max(G.shake, (heavy ? 0.28 : 0.08) * W); G.shakeDir = p.face; sfx(heavy ? 'heavy' : 'hit', W); vib(Math.round((heavy ? 32 : 10) * W)); if (crit) { p.counter = 0; $('counter').classList.add('hidden'); }
     if (p.wtype === 'ls' && !opt.special) p.spirit = Math.min(100, p.spirit + (heavy ? 4 : 9)); }
   const col = crit ? 0x7ff8ff : (p.wtype === 'ls' && p.spiritLvl ? [0xffffff, 0xffffff, 0xffe066, 0xff5050][p.spiritLvl] : (p.elem !== 'none' ? elemColor(p.elem) : 0xffffff));
   weaponTrail(p, col, rng, heavy, opt.wide);
@@ -478,8 +488,8 @@ function clearArrows() { arrows.forEach(a => { scene.remove(a.m); a.m.material.d
 function moveVec(dx, dy) { const camF = new THREE.Vector3(); camera.getWorldDirection(camF); camF.y = 0; camF.normalize(); const camR = new THREE.Vector3(-camF.z, 0, camF.x); return camR.multiplyScalar(dx).addScaledVector(camF, -dy); }
 function cancelable(p) { // 회피로 끊을 수 있는 상태 (공격 후딜 캔슬)
   if (['idle', 'run', 'charge', 'guard', 'dance'].includes(p.state)) return true;
-  if (p.state === 'attack') return p.st / p.atkDur >= (p.heavy ? 0.5 : (p.wtype === 'gs' || p.wtype === 'hammer') ? 0.35 : 0.12);
-  if (p.state === 'hit') return p.st > 0.3;
+  if (p.state === 'attack') return p.st / p.atkDur >= (CANCEL_AT[p.wtype] ?? 0.6) + (p.heavy ? 0.25 : 0); // 타격 프레임 이후에만 회피 캔슬 (대검·해머는 동작이 끝나야)
+  if (p.state === 'hit') return p.st > (p.kd ? 0.9 : 0.3);
   return false;
 }
 function doRoll(p, dir) { burst(p.pos.clone().setY(0.1), 0xc8b08a, 9, 3, 0.45); p.state = 'roll'; p.st = 0; p.rollStart = G.t; p.iframe = 0.32; p.combo = -1; p.charge = 0; p.chargeLvl = 0; setRing(0); p.rollDir = dir; p.face = dir; p.queued = false; sfx('roll'); G.stats.dodges = (G.stats.dodges || 0) + 1; }
@@ -503,6 +513,7 @@ function releaseCharge(p) {
   if (wt.ranged) { p.state = 'attack'; p.st = 0; p.heavy = true; p.combo = 0; p.atkDur = 0.32; p.mult = wt.charge[lvl - 1]; p.hitDone = false; p.spread = lvl >= 3; return; }
   p.state = 'attack'; p.st = 0; p.heavy = true; p.combo = (wt.ko && lvl >= 3) ? 3 : 0; p.atkDur = wt.combo[0] * (wt.ko && lvl >= 3 ? 1.2 : 1.05); p.mult = wt.charge[lvl - 1]; p.hitDone = false; p.wide = wt.ko && lvl >= 3; sfx('swing');
 }
+function drinkPotion() { const p = G?.player; if (!p || !alive(p) || G.potions <= 0 || !['idle', 'run'].includes(p.state)) return false; G.potions--; G.stats.potions++; p.state = 'drink'; p.st = 0; p.drank = false; p.combo = -1; $('bPot').textContent = '물약 ' + G.potions; return true; }
 function updPlayer(p, dt) {
   const wt = p.wt, now = nowT(); p.iframe = Math.max(0, p.iframe - dt); p.invul = Math.max(0, p.invul - dt); p.counter = Math.max(0, p.counter - dt); if (p.counter <= 0) $('counter').classList.add('hidden');
   if (p.spiritLvl > 0) { p.spiritT -= dt; if (p.spiritT <= 0) { p.spiritLvl--; p.spiritT = 25; } }
@@ -510,7 +521,7 @@ function updPlayer(p, dt) {
   if (input.target) { input.target = false; const live = G.monsters.filter(alive); if (live.length) { const i = live.indexOf(G.lock); G.lock = live[(i + 1) % live.length]; popNum(G.lock.pos, '타겟', 'info'); } }
   if (G.lock && !alive(G.lock)) G.lock = nearestMonster(p.pos);
   if (!G.lock) G.lock = nearestMonster(p.pos);
-  const mv = moveVec(input.mx, input.mz), ml = Math.min(1, mv.length());
+  const mv = input.botDir != null ? fwd(input.botDir) : moveVec(input.mx, input.mz), ml = Math.min(1, mv.length());
   const spdMul = p.status.freeze > 0 ? 0.55 : 1;
   if (p.state === 'down') { p.st += dt; return; }
   if (p.state === 'cover') { p.st += dt; p.run = 0; if (p.st >= p.coverDur) p.state = 'idle'; return; } // 포효에 귀 막음 (회피 불가)
@@ -524,7 +535,8 @@ function updPlayer(p, dt) {
     doRoll(p, dir); }
   p.st += dt;
   if (p.state === 'roll') { const k = p.st / 0.42; p.pos.addScaledVector(fwd(p.rollDir), 10 * (1 - k * 0.7) * dt * spdMul); if (k >= 1) { p.state = 'idle'; } p.run = 0; return; }
-  if (p.state === 'hit') { if (p.st > 0.45) p.state = 'idle'; return; }
+  if (p.state === 'hit') { if (p.st > (p.kd ? 1.15 : 0.45)) { p.state = 'idle'; p.kd = false; } return; } // 큰 기술은 넘어짐(일어나는 시간)
+  if (p.state === 'drink') { p.st += dt; p.run = 0; if (!p.drank && p.st >= 1.0) { p.drank = true; const h = Math.round(p.maxHp * 0.4); p.hp = Math.min(p.maxHp, p.hp + h); popNum(p.pos, '+' + h, 'heal'); sfx('perfect'); } if (p.st >= 1.5) p.state = 'idle'; return; } // 물약: 1.5초 무방비
   const lockR = wt.ranged ? 22 : 9;
   const aimLock = () => { if (G.lock && G.lock.pos.distanceTo(p.pos) < lockR) p.face = angTo(p.pos, G.lock.pos); else if (ml > 0.2) p.face = Math.atan2(mv.x, mv.z); };
   const tap = now - input.tapBuf < 0.35; // 입력 버퍼
@@ -574,9 +586,33 @@ function setRing(k, lvl = 0) { const r = $('holdRing'); if (!k) { r.style.opacit
 
 // 몬스터 공격 패턴
 // 몬스터 공격 패턴 (레벨이 오를수록 추가)
-const PATTERNS = { wolf: [['bite', 1], ['rush', 1], ['breath', 3], ['triple', 5]], witch: [['icicle', 1], ['frost', 1], ['rain', 3], ['nova', 5]], drake: [['slam', 1], ['leap', 1], ['quake', 3], ['bolt', 5]],
-  siren: [['wave', 1], ['bubble', 1], ['whirl', 3], ['tide', 5]], kitsune: [['foxfire', 1], ['blink', 1], ['fan', 3], ['pillar', 5]], harpy: [['dive', 1], ['gust', 1], ['feather', 3], ['storm', 5]] };
-function patterns(m) { return PATTERNS[m.sp].filter(([, l]) => m.lvl >= l).map(([k]) => k); }
+// v5.2 [기술, 최소 레벨, 조건('rage'=분노 중만, 'low'=체력 35%↓만)] · 서명 기술(SIG)은 꼭 익혀야 하는 큰 기술
+const PATTERNS = {
+  wolf: [['bite', 1], ['rush', 1], ['feint', 1], ['breath', 2], ['triple', 4], ['tail2', 1, 'rage'], ['delayslam', 1, 'low']],
+  witch: [['icicle', 1], ['frost', 1], ['sweep', 1], ['wingbeat', 2], ['rain', 3], ['nova', 4], ['tail2', 1, 'rage'], ['feint', 1, 'low']],
+  drake: [['slam', 1], ['leap', 1], ['delayslam', 1], ['sweep', 2], ['quake', 3], ['wingbeat', 3], ['bolt', 4], ['tail2', 1, 'rage']],
+  siren: [['wave', 1], ['bubble', 1], ['delayslam', 1], ['whirl', 2], ['tide', 4], ['tail2', 1, 'rage'], ['sweep', 1, 'low']],
+  kitsune: [['foxfire', 1], ['blink', 1], ['feint', 1], ['fan', 2], ['pillar', 4], ['tail2', 1, 'rage'], ['delayslam', 1, 'low']],
+  harpy: [['dive', 1], ['gust', 1], ['wingbeat', 1], ['feather', 2], ['storm', 4], ['tail2', 1, 'rage'], ['feint', 1, 'low']] };
+const SIG = { wolf: 'feint', witch: 'sweep', drake: 'delayslam', siren: 'delayslam', kitsune: 'feint', harpy: 'wingbeat' };
+const FLIGHT = new Set(['leap', 'dive', 'wingbeat', 'storm']); // 날개 파괴 시 봉인
+const BREATH = new Set(['breath', 'frost', 'sweep', 'bolt', 'fan', 'wave', 'gust']); // 머리 부위(뿔·관) 파괴 시 피해 -40%
+const CHARGE_K = new Set(['rush', 'dive', 'leap', 'feint', 'blink']); // 돌진 예비 동작 중 머리를 치면 기절
+const MOVE_INFO = { // 이름 · 예고 · 공략
+  bite: ['물기', '고개를 뒤로 젖힘', '옆으로 돌아 피하기'], rush: ['돌진', '앞발을 긁음', '옆으로 회피, 끝난 뒤 빈틈'], breath: ['화염 숨결', '입에 불이 모임', '측면이나 뒤로'], triple: ['3연 할퀴기', '몸을 낮춤', '세 번째까지 기다렸다 반격'],
+  icicle: ['고드름', '발밑에 원', '원 밖으로'], frost: ['서리 부채', '날개를 모음', '뒤로 돌아가기'], rain: ['얼음비', '하늘을 봄', '원 사이를 걷기'], nova: ['서리 폭발', '몸이 빛남', '안쪽→바깥 순서로 피하기'],
+  slam: ['내려찍기', '앞발을 듦', '옆으로'], leap: ['도약 낙하', '웅크림', '착지 직전 회피'], quake: ['지진', '두 발 내려찍기', '안쪽 원 뒤 바깥 고리'], bolt: ['3갈래 번개', '뿔이 번쩍', '갈래 사이로'],
+  wave: ['물결', '몸을 젖힘', '옆으로'], bubble: ['거품', '볼을 부풂', '터지기 전 이동'], whirl: ['소용돌이', '몸을 감음', '몸 바로 옆이 안전'], tide: ['해일', '높이 솟음', '두 번째 원이 큼'],
+  foxfire: ['여우불', '꼬리 불이 커짐', '계속 움직이기'], blink: ['순간이동 베기', '몸이 흐려짐', '나타나는 자리에서 벗어나기'], fan: ['부채 불꽃', '꼬리를 펼침', '부채 바깥쪽'], pillar: ['불기둥', '땅이 붉어짐', '안쪽 뒤 바깥'],
+  dive: ['급강하', '높이 날아오름', '옆으로, 착지 후 빈틈'], gust: ['돌풍', '날개를 뒤로', '뒤쪽이 안전'], feather: ['깃털 비', '깃털이 곤두섬', '원 사이로'], storm: ['폭풍', '회오리 모임', '안쪽 원 뒤 바깥'],
+  feint: ['점프백 페이크', '뒤로 크게 물러남 → 잠깐 멈춤', '물러날 때 회피하지 말고, 붉은 선이 다 찰 때 회피'],
+  delayslam: ['지연 내려찍기', '높이 든 채 멈춤(원이 깜빡임)', '원이 깜빡이기 시작한 뒤 한 박자 늦게 회피'],
+  sweep: ['휩쓸기 숨결', '고개를 한쪽으로 돌림', '몸 아래·뒤쪽이 안전, 앞은 다섯 번 휩쓸림'],
+  wingbeat: ['날개 폭풍', '날개를 크게 펼침', '몸 바로 아래(날개 밑)는 안전, 바깥 고리가 위험'],
+  tail2: ['꼬리 2연타', '꼬리를 감아올림(분노)', '뒤에 서면 위험, 두 번째 회전까지 피하기'],
+  spin: ['꼬리 휘두르기', '꼬리를 감아올림', '뒤에 오래 서 있지 않기'], swat: ['앞발 견제', '정면에 오래 서 있음', '정면에 서서 버티지 말고 옆으로'] };
+function patterns(m) { const lowHp = m.hp < m.maxHp * 0.35, wingBroken = m.parts.some(p => p.key === 'wing' && p.broken);
+  return PATTERNS[m.sp].filter(([k, l, c]) => m.lvl >= l && (!c || (c === 'rage' && m.enraged) || (c === 'low' && lowHp)) && !(wingBroken && FLIGHT.has(k))).map(([k]) => k); }
 function pickTarget(m) {
   if (m.taunt > 0 && m.aggro && alive(m.aggro)) return m.aggro;
   const live = G.allies.filter(alive); const p = G.player; if (alive(p) && Math.random() < 0.6) return p; return live[Math.floor(Math.random() * live.length)] || p;
@@ -609,13 +645,21 @@ function beginAttack(m, kind) {
     case 'dive': list = [T({ type: 'line', x, z, a, w: 2.0, len: 13 }, 0.95 * wu)]; anim = 'charge'; after = { dash: 13 }; el = 'thunder'; mult = 1.2; break;
     case 'gust': list = [T({ type: 'cone', x, z, a, r: 6.0, ang: 1.2 }, 1.0 * wu)]; anim = 'cast'; mult = 1.0; break;
     case 'feather': list = [0, 1, 2, 3, 4].map(i => { const ra = rnd(0, 7), rr = i ? rnd(2, 5) : 0; return T({ type: 'circle', x: tgt.pos.x + Math.sin(ra) * rr, z: tgt.pos.z + Math.cos(ra) * rr, r: 1.4 }, 1.0 * wu + i * 0.2); }); anim = 'cast'; el = 'thunder'; mult = 0.8; break;
+    case 'feint': { const back = fwd(a).multiplyScalar(-3.5); list = [T({ type: 'line', x: x + back.x, z: z + back.z, a, w: 2.2, len: 15 }, 0.9 * wu, 0.75)]; if (L >= 4) list.push(T({ type: 'line', x: x + back.x, z: z + back.z, a, w: 2.2, len: 15 }, 0.7 * wu, 1.9)); anim = 'charge'; after = { back, dash: 14 }; mult = 1.25; el = m.elem; break; }
+    case 'delayslam': { const hold = L >= 4 ? rnd(0.3, 0.85) : 0.55; list = [T({ type: 'circle', x: tgt.pos.x, z: tgt.pos.z, r: 3.2 }, 1.0 * wu)]; list[0].hold = hold; anim = 'slam'; mult = 1.45; el = m.elem; break; }
+    case 'sweep': list = [-2, -1, 0, 1, 2].map(i => T({ type: 'cone', x, z, a: a + i * 0.45, r: 6.5, ang: 0.6 }, 0.95 * wu + (i + 2) * 0.16)); anim = 'cast'; mult = 0.75; el = m.elem; break;
+    case 'wingbeat': list = [T({ type: 'ring', x, z, r: 1.8 * m.S.scale / 1.45, r2: 6.8 }, 1.15 * wu)]; anim = 'cast'; mult = 1.2; el = m.elem; break;
+    case 'tail2': list = [T({ type: 'circle', x, z, r: 3.0 * m.S.scale / 1.45 }, 0.85 * wu), T({ type: 'circle', x, z, r: 3.6 * m.S.scale / 1.45 }, 0.6, 0.85 * wu)]; anim = 'swing'; mult = 0.9; break;
+    case 'swat': list = [T({ type: 'cone', x, z, a, r: 2.8 * m.S.scale / 1.45, ang: 1.2 }, 0.6)]; anim = 'swing'; mult = 1.05; break;
     case 'spin': list = [T({ type: 'circle', x, z, r: 2.9 * m.S.scale / 1.45 }, 1.15 * wu)]; anim = 'swing'; mult = 1.0; break; // 뒤에 붙은 헌터 견제 (꼬리 휘두르기)
     case 'storm': list = [T({ type: 'circle', x, z, r: 3.5 }, 1.0 * wu), T({ type: 'ring', x, z, r: 5, r2: 8 }, 1.55 * wu)]; anim = 'cast'; el = 'thunder'; break;
   }
+  { const cd = codexOf(m.sp); cd.moves[kind] = (cd.moves[kind] || 0) + 1; }
+  if (G.stats) { G.stats.atkN = (G.stats.atkN || 0) + 1; if (BIG.has(kind)) G.stats.bigN = (G.stats.bigN || 0) + 1; }
   m.lastK = kind; m.cur = { kind, anim, after, mult: mult * (m.enraged ? 1.15 : 1), el: el || (Math.random() < 0.4 ? m.elem : null), list, teles: [], t: 0, done: 0, total: Math.max(...list.map(l => l.dur + l.delay)) };
   m.ai = 'windup'; m.state = 'windup';
 }
-const BIG = new Set(['rush', 'triple', 'nova', 'leap', 'quake', 'bolt', 'tide', 'pillar', 'dive', 'storm', 'fan']); // 큰 공격 뒤엔 긴 빈틈
+const BIG = new Set(['rush', 'triple', 'nova', 'leap', 'quake', 'bolt', 'tide', 'pillar', 'dive', 'storm', 'fan', 'feint', 'delayslam', 'sweep', 'wingbeat', 'tail2']); // 큰 공격 뒤엔 긴 빈틈
 function startRoar(m, why) { clearMonsterTele(m); m.ai = 'roar'; m.aiT = 0; m.roarHit = false; m.st = 0; m.pendingRoar = null; G.zoomK = 1.18;
   if (why === 'rage') { say(m.S.lines.break.replace(/.*?!/, '') || '이제 진심이야!', m.S.short); }
   sfx('roar'); vib([30, 30, 30]); }
@@ -634,6 +678,7 @@ function updMonster(m, dt) {
   if (!m.weakened && m.hp < m.maxHp * 0.22 && alive(m)) { m.weakened = true; m.pendingFlee = true; m.enraged = false; m.turnRate = 2.0; }
   if (m.enraged && alive(m)) { m._rt = (m._rt || 0) + dt; if (m._rt > 0.25) { m._rt = 0; const h = m.model.userData.rig.head, v = new THREE.Vector3(); h.getWorldPosition(v); burst(v, 0xff5a3a, 2, 1.4, 0.6); } }
   const sMul = (m.status.freeze > 0 ? 0.5 : 1) * (m.slow > 0 ? 0.7 : 1) * (m.weakened ? 0.7 : 1);
+  if (m.ai === 'recover' || m.ai === 'stun' || m.ai === 'topple') G.stats.winT = (G.stats.winT || 0) + dt;
   if (m.ai === 'down') { m.state = 'down'; m.st += dt; m.model.position.y = 0; return; }
   if (m.ai === 'topple') { m.state = 'topple'; m.topT += dt; m.aiT -= dt; m.run = 0; if (m.aiT <= 0) { m.ai = 'recover'; m.aiT = 0.6; } return; }
   if (m.ai === 'roar') { updRoar(m, dt); return; }
@@ -649,24 +694,28 @@ function updMonster(m, dt) {
       if (!m.roared) { m.roared = true; m.roarWhy = 'meet'; startRoar(m, 'meet'); return; } // 조우 포효
       if (m.pendingRoar) { m.roarWhy = m.pendingRoar; startRoar(m, m.pendingRoar); return; }
       if (m.pendingFlee) { m.pendingFlee = false; m.ai = 'flee'; m.aiT = 2.4; banner(`${m.S.short}가 약해졌다! 절뚝거린다`, 1400); say('하아… 하아…', m.S.short); return; }
+      if (tgt.isPlayer && Math.abs(diff) < 0.6 && d < 3.4 * MSCALE) { m.frontT = (m.frontT || 0) + 1; if (m.frontT >= 2 || Math.random() < 0.45) { m.frontT = 0; beginAttack(m, 'swat'); return; } } else m.frontT = 0; // 정면에 버티면 빠른 견제
       const behind = Math.abs(diff) > 2.0 && d < 4.5;
       if (behind && Math.random() < 0.55 && m.lastK !== 'spin') { beginAttack(m, 'spin'); return; }
-      if (Math.abs(diff) > 0.55) { m.atkCd = 0.05; return; } // 정면을 맞출 때까지 돌기만 함
+      if (Math.abs(diff) > 0.55) { m.turnWait = (m.turnWait || 0) + 0.05; if (m.turnWait > 1.0) { m.turnWait = 0; beginAttack(m, m.enraged ? 'tail2' : 'spin'); return; } m.atkCd = 0.05; return; } m.turnWait = 0; // 정면을 맞출 때까지 돌기만 함
       const P = patterns(m).filter(k => k !== m.lastK || Math.random() < 0.25); const near = d < 4 * MSCALE; let k = P[Math.floor(Math.random() * P.length)] || patterns(m)[0];
       if (near && m.sp === 'wolf' && Math.random() < 0.5) k = 'bite'; if (!near && m.sp === 'drake' && Math.random() < 0.6) k = 'leap'; if (!near && m.sp === 'harpy' && Math.random() < 0.5) k = 'dive'; beginAttack(m, k); } return; }
   if (m.ai === 'windup') { const c = m.cur; c.t += dt * sMul; m.state = 'windup'; m.run = 0;
     for (const l of c.list) { if (!l.tele && c.t >= l.delay) { l.tele = makeTele(l.sh, l.dur); c.teles.push(l.tele); }
-      if (l.tele && !l.fired) { const p = (c.t - l.delay) / l.dur; setTeleP(l.tele, clamp(p, 0, 1)); if (p >= 1) { l.fired = true; fireShape(m, l.sh, c); killTele(l.tele); c.teles.splice(c.teles.indexOf(l.tele), 1); } } }
+      if (l.tele && !l.fired) { const p = (c.t - l.delay) / l.dur; setTeleP(l.tele, clamp(p, 0, 1)); if (p >= 1 && l.hold && l.tele.fill) l.tele.fill.visible = Math.sin(c.t * 40) > 0; if (p >= 1 + (l.hold || 0) / l.dur) { l.fired = true; fireShape(m, l.sh, c); killTele(l.tele); c.teles.splice(c.teles.indexOf(l.tele), 1); } } }
+    if (c.after?.back && c.t < 0.5) m.pos.addScaledVector(c.after.back, dt * 2);
     if (c.after?.leap) { const p = clamp(c.t / c.list[0].dur, 0, 1); if (p > 0.55) { m.pos.lerp(c.after.leap, Math.min(1, dt * 7)); m.model.position.y = Math.sin((p - 0.55) / 0.45 * Math.PI) * 2.5; } }
     if (c.list.every(l => l.fired)) { m.model.position.y = 0; m.ai = 'strike'; m.aiT = 0.35; m.state = 'strike'; if (c.after?.dash) { m.dashLeft = c.after.dash; } } return; }
   if (m.ai === 'strike') { m.aiT -= dt; if (m.dashLeft > 0) { const s = Math.min(m.dashLeft, 32 * dt); m.pos.addScaledVector(fwd(m.face), s); m.dashLeft -= s; m.state = 'run'; m.run = 1; }
     if (m.aiT <= 0) { const big = BIG.has(m.cur?.kind); m.ai = 'recover'; m.aiT = (big ? 1.9 : Math.max(0.7, 1.3 - 0.06 * m.lvl)) * (m.enraged ? 0.8 : 1) * (m.weakened ? 1.3 : 1); m.bigOpen = big; m.dashLeft = 0; m.cur = null; if (big) popNum(m.pos, '빈틈!', 'info'); } return; }
-  if (m.ai === 'recover') { m.state = m.bigOpen ? 'stun' : 'idle'; m.run = 0; m.aiT -= dt; if (m.aiT <= 0) { m.bigOpen = false; m.ai = 'move'; m.atkCd = rnd(0.4, 1.2) * Math.max(0.5, 1 - 0.07 * m.lvl) * (m.enraged ? 0.7 : 1); } }
+  if (m.ai === 'recover') { m.state = m.bigOpen ? 'stun' : 'idle'; m.run = 0; m.aiT -= dt; if (m.aiT <= 0) { m.bigOpen = false; m.ai = 'move'; m.atkCd = rnd(0.25, 0.8) * Math.max(0.5, 1 - 0.07 * m.lvl) * (m.enraged ? 0.7 : 1); } }
 }
 function fireShape(m, sh, c) {
   G.shake = Math.max(G.shake, 0.25); burst(new THREE.Vector3(sh.x, 0.3, sh.z), c.el ? elemColor(c.el) : 0xffa080, 14, 6);
   if (sh.type === 'line' && c.after?.dash === undefined) { /* 원거리 선 */ }
-  for (const a of G.allies) if (alive(a) && inShape(sh, a.pos.x, a.pos.z)) hurt(a, m.dmg * c.mult, c.el, m);
+  const k = c.kind, big = BIG.has(k), horn = m.parts[0]?.broken && BREATH.has(k) ? 0.6 : 1;
+  for (const a of G.allies) if (alive(a) && inShape(sh, a.pos.x, a.pos.z)) { const hp0 = a.hp; hurt(a, m.dmg * c.mult * (big ? 1.45 : 1) * horn, c.el, m, big);
+    if (a.isPlayer && a.hp < hp0) { G.stats.hitBy[k] = (G.stats.hitBy[k] || 0) + 1; G.stats.hitDmg[k] = (G.stats.hitDmg[k] || 0) + (hp0 - a.hp); if (big) (G.stats.bigPct = G.stats.bigPct || []).push((hp0 - a.hp) / a.maxHp); } }
 }
 // 동료 AI
 function updComp(c, dt) {
@@ -751,7 +800,7 @@ function updHud() {
 }
 function animEnt(e, T) {
   const s = e.state, a = { state: s, time: T, run: e.run, p: 0, combo: e.combo, heavy: e.heavy, wtype: e.wtype };
-  if (s === 'attack') a.p = clamp(e.st / (e.atkDur || 0.4), 0, 1); if (s === 'roll') a.p = clamp(e.st / 0.42, 0, 1); if (s === 'special') a.p = clamp(e.st / e.wt.sp.dur, 0, 1); if (s === 'hit') a.p = clamp(e.st / 0.45, 0, 1); if (s === 'down') a.p = e.st;
+  if (s === 'attack') a.p = clamp(e.st / (e.atkDur || 0.4), 0, 1); if (s === 'roll') a.p = clamp(e.st / 0.42, 0, 1); if (s === 'special') a.p = clamp(e.st / e.wt.sp.dur, 0, 1); if (s === 'hit') a.p = clamp(e.st / 0.45, 0, 1); if (s === 'down') a.p = e.st; if (s === 'drink') a.p = clamp(e.st / 1.5, 0, 1);
   if (s === 'charge') a.lvl = e.chargeLvl + 1;
   if (s === 'roar') a.p = clamp(e.aiT / 1.7, 0, 1); if (s === 'topple') a.p = e.topT || 0; a.flinch = e.flinch || 0; a.limp = !!e.weakened; a.enraged = !!e.enraged; a.hitAt = e.wt?.hitAt;
   if (e.outl) { const wind = s === 'windup', gold = e.goldT > 0; // 몬헌 나우: 공격 직전 붉게 빛남 / 완벽 회피 노란 윤곽
@@ -767,7 +816,7 @@ const hitMat = new THREE.MeshBasicMaterial({ color: 0xffc8c8 });
 let last = performance.now(), fpsAcc = 0, fpsN = 0, fps = 60;
 function loop(now) {
   requestAnimationFrame(loop); const rawDt = (now - last) / 1000; let dt = Math.min(0.05, rawDt); last = now; fpsAcc += rawDt; fpsN++; if (fpsAcc > 1) { fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
-  if (G) step(dt); else idleScene(dt, now / 1000);
+  if (G) { for (let i = 0; i < (window.__simSpeed || 1) && G; i++) step(dt); } else idleScene(dt, now / 1000);
   updParticles(dt); updTrails(dt); updGlows(dt); fx.update(dt); env.update(dt, now / 1000); autoQuality(rawDt); renderer.render(scene, camera);
 }
 function step(rdt) {
@@ -775,6 +824,7 @@ function step(rdt) {
   G.player.goldT = Math.max(0, (G.player.goldT || 0) - rdt);
   if (G.hitstop > 0) { G.hitstop -= rdt; G.allies.concat(G.monsters).forEach(e => animEnt(e, T)); updCamera(rdt); return; }
   let dt = rdt; if (G.slowmo > 0) { G.slowmo -= rdt; dt *= 0.3; }
+  if (window.__bot) window.__bot(dt);
   G.t += dt; G.shake = Math.max(0, G.shake - rdt * 1.6); G.buff = Math.max(0, G.buff - dt);
   if (!G.over) { G.time -= dt; if (G.time <= 0) { G.time = 0; G.over = true; banner('시간 초과'); { const g = G; setTimeout(() => G === g && endHunt(false), 1400); } } }
   const p = G.player;
@@ -831,9 +881,13 @@ function endHunt(win) {
   const compXp = win ? 30 : 12; save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) { c.xp = (c.xp || 0) + Math.round(compXp * xpMul(c, save.comps)); while (c.xp >= c.level * 60 && c.level < 10 + c.potential * 4) { c.xp -= c.level * 60; c.level++; } } });
   save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) save.bond[c.species] = (save.bond[c.species] || 0) + (win ? 2 : 1); });
   save.stats.hunts++; if (win) save.stats.wins++; else save.stats.fails++;
-  for (const m of mons) { const cd = save.codex[m.sp] = save.codex[m.sp] || { seen: 0, won: 0, maxLvl: 0 }; cd.seen++; if (win) { cd.won++; cd.maxLvl = Math.max(cd.maxLvl, m.lvl); } }
+  st.dur = G.t; const noHit = win && st.hits === 0, clean = win && st.perfect >= 3, bo = (k, n) => { add(k, n); addMat(k, n); }; // 무피격·완벽 회피 3회 보상
+  if (noHit) for (const m of mons) bo(`${m.sp}:${m.parts[0].key}:${qualOf(m.lvl)}`, 2); if (clean) for (const m of mons) bo(`${m.sp}:hide:${qualOf(m.lvl)}`, 2);
+  const worst = Object.entries(st.hitDmg).sort((a, b) => b[1] - a[1])[0];
+  const tip = worst ? { k: worst[0], n: st.hitBy[worst[0]], d: Math.round(worst[1]) } : null;
+  for (const m of mons) { const cd = codexOf(m.sp); cd.seen++; if (G.player.elem && G.player.elem !== 'none') cd.elems[G.player.elem] = 1; for (const k in st.hitBy) cd.hitBy[k] = (cd.hitBy[k] || 0) + st.hitBy[k]; if (win) { cd.won++; cd.maxLvl = Math.max(cd.maxLvl, m.lvl); } }
   persist();
-  lastResult = { win, sc, need: PURIFY_NEED, canPurify: purInfo.some(x => x.ok), purInfo, drops, xp, ranked, mons: mons.map(m => ({ sp: m.sp, lvl: m.lvl })), st, purified: false };
+  lastResult = { win, sc, need: PURIFY_NEED, canPurify: purInfo.some(x => x.ok), purInfo, drops, xp, ranked, mons: mons.map(m => ({ sp: m.sp, lvl: m.lvl })), st, purified: false, tip, noHit, clean };
   setTimeout(() => { teardown(); showResult(); }, 400);
 }
 function teardown() { if (!G) return; clearArrows(); touches.clear(); input.mx = input.mz = 0; input.dodgeBuf = null; input.tapBuf = -9; $('stick').style.opacity = 0; [...G.allies, ...G.monsters].forEach(e => scene.remove(e.model)); [...telegraphs].forEach(killTele); G = null; $('hud').classList.add('hidden'); lockMark.visible = weakMark.visible = false; setRing(0); input.atkDown = false; }
@@ -870,6 +924,7 @@ function snap(key, build, cam) { if (portraitCache[key]) return portraitCache[ke
   } catch { portraitCache[key] = 'icon-192.png'; } return portraitCache[key]; }
 function beastImg(sp) { return snap('beast:' + sp, () => { const g = buildBeast(sp, S_[sp].look, 1); animateBeast(g, { state: 'idle', time: 1 }); g.rotation.y = 1.25; g.userData.bg = new THREE.Color(ELEM[S_[sp].elem].col).multiplyScalar(0.3).getHex(); return g; }, [[2.6, 1.5, 4.2], [0, 0.6, 0]]); }
 function compImg(c) { return snap('comp:' + c.id + ':' + c.hair, () => { const S = S_[c.species]; const g = buildGirl(humanLook(c.species, Object.assign({}, S.look, { angry: false, hair: c.hair, accessory: ACCS[c.acc], weapon: null, offhand: null }, WMODEL[MENTOR[c.species].w], { weaponColor: elemColor(S.elem) }))); addMotif(g, c.species); animate(g, { state: 'idle', time: 1, run: 0 }); g.rotation.y = 0.35; g.userData.bg = new THREE.Color(ELEM[S.elem].col).multiplyScalar(0.35).getHex(); return g; }, [[0, 1.35, 2.7], [0, 1.15, 0]]); }
+function codexOf(sp) { const c = save.codex[sp] = save.codex[sp] || { seen: 0, won: 0, maxLvl: 0 }; c.moves = c.moves || {}; c.broke = c.broke || {}; c.elems = c.elems || {}; c.hitBy = c.hitBy || {}; return c; }
 const owned = (sp) => save.comps.some(c => c.species === sp);
 const PURIFY_NEED = 70, PURIFY_MIN_LVL = 2;
 let forgeType = 'sns';
@@ -919,6 +974,11 @@ function heroScreen() { const h = HEROES.find(x => x.id === heroSel);
     <div class="herolist">${HEROES.map(x => `<button class="hero-c ${heroSel === x.id ? 'on' : ''}" data-hero="${x.id}"><span class="hdot" style="background:#${x.look.hair.toString(16).padStart(6, '0')};border-color:#${x.look.cloth2.toString(16).padStart(6, '0')}"></span><span><b>${x.name}</b> <span class="note">${x.age}세 · ${x.tag}</span><br><span class="note">${x.motive}</span></span></button>`).join('')}</div>
     <div class="finfo">${h ? `<span>"${h.line}"</span>` : '<span class="note">카드를 탭하면 한마디를 들을 수 있어요.</span>'}<button class="btn ${h ? '' : 'dis'}" data-act="heroOk">결정</button></div>`, 'village gear'); }
 function beatScreen(b) { ui(`<div class="op"><div class="note">메인 스토리 · HR ${b.hr}</div><h1>${b.t}</h1><p>${hName(b.s)}</p><div class="row"><button class="btn" data-beat="${b.hr}">확인</button></div></div>`, 'village gear op-wrap'); }
+function noteScreen(sp) { const S = S_[sp], cd = codexOf(sp), mv = [...PATTERNS[sp].map(x => x), ['spin', 1]];
+  const row = ([k, l, c]) => { const I = MOVE_INFO[k], seen = cd.moves[k]; return `<li>${seen ? `<b>${I[0]}</b>${SIG[sp] === k ? ' ⭐서명' : ''}${c === 'rage' ? ' (분노)' : c === 'low' ? ' (빈사)' : l > 1 ? ` (Lv${l}+)` : ''} — 예고: ${I[1]} · 공략: ${I[2]}${cd.hitBy[k] ? ` · 맞은 횟수 ${cd.hitBy[k]}` : ''}` : `??? ${l > 1 ? `(Lv${l}+)` : c ? '(특수 조건)' : ''} — 아직 못 본 기술`}</li>`; };
+  ui(`<h1>📓 ${S.short} 사냥 노트</h1><div class="storytext"><ul class="note" style="padding-left:16px;margin:0">${mv.map(row).join('')}</ul>
+    <p class="note">약점 속성: ${Object.keys(cd.elems).length ? ELEM[S.weak].n + (cd.elems[S.weak] ? ' (확인됨)' : ' (아직 이 속성으로 사냥 안 함)') : '???'}<br>부위: ${S.parts.map(p => cd.broke[p.key] ? `<b>${p.n}</b>(파괴: ${p.key === 'wing' ? '비행 기술 봉인' : p === S.parts[0] ? '숨결 약화' : '넘어뜨림'})` : `${p.n}(미파괴)`).join(' · ')}<br>돌진 예비 동작 중 머리를 치면 기절 · 완벽 회피 직후 반격 찬스</p></div>
+    <div class="row"><button class="btn sm alt" data-tab="codex">← 도감</button></div>`, 'village gear'); }
 function loreScreen() { ui(`<h1>${LORE.title}</h1><div class="storytext">${LORE.body.map(p => `<p>${p}</p>`).join('')}</div><div class="row"><button class="btn sm alt" data-act="village">← 돌아가기</button></div>`, 'village gear'); }
 function village() {
   if (!save.opened) { openingScreen(); return; }
@@ -951,7 +1011,7 @@ function village() {
       return `<div class="crow ${inP ? 'in' : ''}"><img src="${compImg(c)}" alt=""><div class="t"><b>${c.name}</b> <span class="tag">${ROLES[c.role]}</span><span class="tag ${ELEM[S.elem].c}">${ELICON[S.elem]}${S.short}</span> Lv${c.level}/${10 + c.potential * 4}${xm !== 1 ? ` <span class="note">경험치×${xm}</span>` : ''}<br><span class="note">${N.icon} <b>${N.n}</b> ${N.d} · <span class="down">${N.weak}</span></span>${mentorLine(c, w.type)}</div>
       <div class="cbtn"><button class="btn sm ${inP ? '' : 'alt'}" data-party="${c.id}">${inP ? '해제' : '편성'}</button><button class="btn sm alt" data-cgear="${c.id}">장비</button><button class="btn sm alt" data-story="${c.id}">이야기</button><button class="btn sm alt" data-train="${c.id}">훈련</button></div></div>`; }).join('') + `</div>` : '<p>아직 동료가 없어요. 정화 점수 70 이상 + Lv2 이상 + 부위 파괴 1곳 이상이면 정화해 동료로 맞이할 수 있어요.</p>');
   } else if (tab === 'codex') {
-    body = Object.entries(S_).map(([k, S]) => { const c = save.codex[k]; return `<div class="card"><img src="${spImg(k)}" alt=""><div class="t"><b class="${ELEM[S.elem].c}">${S.name}</b> ${owned(k) ? '<span class="tag pur">동료</span>' : ''}<br>${c ? `조우 ${c.seen} · 토벌 ${c.won} · 최고 Lv${c.maxLvl}<br><span class="note">약점 ${ELEM[S.weak].n} · 부위: ${S.parts.map(p => p.n).join(', ')} · 역할 후보: ${S.roles.map(r => ROLES[r]).join('/')}</span>` : '<span class="note">미조우</span>'}</div></div>`; }).join('') +
+    body = Object.entries(S_).map(([k, S]) => { const c = save.codex[k]; return `<div class="card"><img src="${spImg(k)}" alt=""><div class="t"><b class="${ELEM[S.elem].c}">${S.name}</b> ${owned(k) ? '<span class="tag pur">동료</span>' : ''}<br>${c ? `조우 ${c.seen} · 토벌 ${c.won} · 최고 Lv${c.maxLvl}<br><span class="note">패턴 ${Object.keys(codexOf(k).moves).length}/${PATTERNS[k].length + 1} 파악 <button class="btn sm alt" data-note="${k}" style="padding:2px 8px">📓 노트</button><br>약점 ${ELEM[S.weak].n} · 부위: ${S.parts.map(p => p.n).join(', ')} · 역할 후보: ${S.roles.map(r => ROLES[r]).join('/')}</span>` : '<span class="note">미조우</span>'}</div></div>`; }).join('') +
       `<p class="note">사냥 ${save.stats.hunts} · 성공 ${save.stats.wins} · 실패 ${save.stats.fails} · 정화 ${save.stats.purified}</p>`;
   } else {
     const t = (k, n) => `<button class="btn sm ${save.settings[k] ? '' : 'alt'}" data-tog="${k}">${n}: ${save.settings[k] ? '켬' : '끔'}</button>`;
@@ -1006,6 +1066,7 @@ function showResult() {
   ui(`<div class="card"><img src="${S.img2}" alt="" style="width:90px;height:120px"><div class="t"><h1>${r.win ? '토벌 성공!' : '사냥 실패'}</h1>"${r.win ? S.lines.win : S.lines.lose}"</div></div>
     <h2>정화 판정 (전투 결과 기준)</h2><table class="score">${rows.map(([n, v, mx]) => `<tr><td>${n}</td><td><b>${v}</b> / ${mx}</td></tr>`).join('')}<tr><td><b>합계</b></td><td class="big">${sc.total} <span class="note">/ 기준 ${r.need}</span></td></tr></table><p class="note">정화 조건: 점수 ${r.need}점 이상 + 몬스터 Lv${PURIFY_MIN_LVL} 이상 + 부위 파괴 1곳 이상 + 아직 없는 종</p>
     ${purifyBlock}
+    ${r.tip ? `<p class="note">📓 가장 아팠던 공격: <b>${MOVE_INFO[r.tip.k]?.[0] || r.tip.k}</b> ×${r.tip.n} (피해 ${r.tip.d}) — ${MOVE_INFO[r.tip.k]?.[2] || ''}</p>` : ''}${r.noHit ? '<p class="note">🏅 무피격 토벌 보너스: 머리 부위 소재 +2</p>' : ''}${r.clean ? '<p class="note">🏅 완벽 회피 3회+ 보너스: 가죽 +2</p>' : ''}
     <h2>획득</h2><div class="note">${Object.entries(r.drops).map(([k, n]) => `${matName(k)} ×${n}`).join('<br>') || '소재 없음'}<br>헌터 경험치 +${r.xp}${r.ranked ? ` · <b>HR ${save.hr} 달성!</b>` : ''} · 완벽 회피 ${r.st.perfect}회 · 부위 파괴 ${r.st.broken}</div>
     <div class="row" style="margin-top:12px"><button class="btn" data-act="village">마을로</button></div>`);
 }
@@ -1025,6 +1086,7 @@ uiEl.addEventListener('click', (e) => {
   if (d.op) { if (d.op === 'next' && opIdx < OPENING.length - 1) { opIdx++; openingScreen(); return; } opIdx = 0; save.opened = true; persist(); village(); return; }
   if (d.hero) { heroSel = d.hero; heroScreen(); return; }
   if (d.act === 'heroOk') { if (!heroSel) return; save.hero = heroSel; persist(); village(); return; }
+  if (d.note) { noteScreen(d.note); return; }
   if (d.beat) { save.beats = save.beats || []; save.beats.push(+d.beat); persist(); village(); return; }
   if (d.act === 'replayOp') { opIdx = 0; save.opened = false; village(); return; }
   if (d.act === 'lore') { loreScreen(); return; }
@@ -1073,5 +1135,5 @@ uiEl.addEventListener('change', async (e) => {
 });
 addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
-window.HN = { beastImg: (sp) => beastImg(sp), noteMoveForTest: (k) => noteMove(k), startTraining: (id) => startTraining(save.comps.find(c => c.id === id)), skipIntro: () => { save.opened = true; save.hero = save.hero || 'aria'; save.beats = BEATS.map(b => b.hr); persist(); village(); }, startHuntForTest: (i = 0) => { village(); clearIdle(); startHunt(save.nodes[i]); }, startHuntNode: (n) => { clearIdle(); startHunt(n); }, damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
+window.HN = { hitstopTable: () => Object.fromEntries(Object.keys(WEIGHT).map(w => [w, [hitstopOf(w, false, false), hitstopOf(w, false, true), hitstopOf(w, true, false)].map(x => Math.round(x * 1000))])), roll: (a) => { const p = G?.player; if (p && alive(p) && cancelable(p)) { doRoll(p, a); return true; } return false; }, drink: () => drinkPotion(), nowT: () => nowT(), inShape: (sh, x, z) => inShape(sh, x, z), BIG,  beastImg: (sp) => beastImg(sp), noteMoveForTest: (k) => noteMove(k), startTraining: (id) => startTraining(save.comps.find(c => c.id === id)), skipIntro: () => { save.opened = true; save.hero = save.hero || 'aria'; save.beats = BEATS.map(b => b.hr); persist(); village(); }, startHuntForTest: (i = 0) => { village(); clearIdle(); startHunt(save.nodes[i]); }, startHuntNode: (n) => { clearIdle(); startHunt(n); }, damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
 village();
