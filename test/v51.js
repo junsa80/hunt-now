@@ -29,6 +29,20 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms)); let pass = 0, fail = 
   ok('허수아비: 이름·대사 수정', await ev(() => document.getElementById('mName').textContent.includes('허수아비') && !document.getElementById('line').classList.contains('on')));
   ok('훈련은 전문 무기(랜스)', await ev(() => HN.G.player.wtype === 'lance'));
   await page.screenshot({ path: OUT + '/v51-03-training-dummy.png' });
+  // 동료 피해 비중: 헌터가 0.5초마다 공격(기본 피해 25), 동료는 AI로 싸움, 14초 측정
+  await ev(() => HN.startHuntForTest(0)); await sleep(800);
+  await ev(() => { const G = HN.G, m = G.monsters[0]; m.hp = m.maxHp = 1e6; G.player.hp = G.player.maxHp = 1e6; G.allies.forEach(a => { a.hp = a.maxHp = 1e6; }); G.allies.slice(1).forEach((a, i) => a.pos.set(m.pos.x + (i - 1) * 2.5, 0, m.pos.z + 2.5));
+    window.__t = setInterval(() => { if (HN.G && HN.G.monsters[0]) HN.damageMonsterForTest(HN.G.monsters[0], 25, HN.G.player, {}); }, 500); });
+  await page.screenshot({ path: OUT + '/v51-05-beast-hunt.png' }); await sleep(14000);
+  const sh = await ev(() => { clearInterval(window.__t); const s = HN.G.stats; return { h: s.dealt, c: s.compDealt || 0 }; }); const share = sh.c / (sh.h + sh.c);
+  console.log('동료 피해 비중(헤드리스 14초):', (share * 100).toFixed(1) + '%', JSON.stringify(sh));
+  ok('동료 피해 비중 20~30% 이하(조력자)', share <= 0.3 && sh.c > 0, (share * 100).toFixed(1) + '%');
+  // 정화 변신 장면
+  await ev(() => { HN.G.monsters[0].hp = 0; HN.endHunt(true); }); await sleep(2500);
+  await ev(() => { const r = HN.result, c = HN.save.comps[0]; r.purified = c.name; r.purSp = c.species; r.purId = c.id; r.canPurify = false; HN.showResult(); }); await sleep(1250);
+  await page.screenshot({ path: OUT + '/v51-06-purify-mid.png' }); await sleep(1800);
+  await page.screenshot({ path: OUT + '/v51-07-purify-human.png' });
+  ok('정화 변신 장면(짐승→빛·파편→사람)', await ev(() => !!document.querySelector('.xform .xb') && !!document.querySelector('.xform .xg') && document.querySelectorAll('.xform .sh').length === 12 && /거대한 늑대/.test(document.body.textContent)));
   ok('JS 오류 없음', errors.length === 0, errors.slice(0, 3).join(' | '));
   console.log(`${pass}/${pass + fail} 통과`); await browser.close();
 })();

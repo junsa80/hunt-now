@@ -1,5 +1,6 @@
 import * as THREE from './vendor/three.module.js';
-import { buildGirl, animate, setWeapon, toon, ownOutline, ATK_STYLE } from './chars.js';
+import { buildGirl, animate, setWeapon, toon, ownOutline, ATK_STYLE, bodyPart, GEO } from './chars.js';
+import { buildBeast, animateBeast } from './beasts.js';
 import { createFx, buildEnv, RIM } from './fx.js';
 import { LORE, OPENING, HEROES, BEATS, PURIFY_SCENE, PURIFY_FAIL } from './lore.js';
 import { NICHE, MODS, MOD_KEYS, teamFx, rosterFx, xpMul, ROSTER } from './synergy.js';
@@ -229,6 +230,7 @@ let pollInput = () => {};
 // ───────── 전투 상태 ─────────
 let G = null; // 현재 사냥
 const HUNT_TIME = 75; // v5: 몬헌 나우식 75초 사냥
+const COMP_CAP = 0.25;
 const MSCALE = 1.22; // 몬스터를 헌터보다 확실히 크게 (몬헌 나우의 체급 차)
 const WEIGHT = { sns: 0.6, db: 0.5, ls: 0.85, bow: 0.5, lance: 0.9, gs: 1.45, hammer: 1.3 }; // 히트스톱·흔들림·타격음 무게
 function weaponById(id) { return save.weapons.find(w => w.id === id); }
@@ -262,7 +264,7 @@ const WMODEL = { sns: { weapon: 'sns', shield: 0xb04050 }, gs: { weapon: 'gs' },
 // 스승 보너스 계산 (같은 무기 + 그 동료 편성)
 function mentorBonus(partyC, wtype) { const ex = partyC.filter(c => MENTOR[c.species].w === wtype); let atk = 0, pd = 0, sp = 0, who = null, tier = 0;
   for (const c of ex) { const t = mentorTier(c, save); const a = mentorPassive(c) + (t >= 1 ? TECH_T1 : 0) + (t >= 2 ? 0.04 : 0); if (a > atk) { atk = a; who = c; tier = t; pd = t >= 2 ? 0.03 : 0; sp = t >= 3 ? 0.15 : 0; } } return { atk, pd, sp, who, tier }; }
-function startHunt(node) {
+function startHunt(node) { $("trainBox").classList.add("hidden"); // 이전 훈련 안내가 남지 않게
   ui(''); $('hud').classList.remove('hidden');
   const w = weaponById(save.equip.weapon), arm = armorById(save.equip.armor), wt = WEAPON_TYPES[w.type];
   const wm = WMODEL[w.type];
@@ -275,11 +277,11 @@ function startHunt(node) {
   const allies = [player];
   for (const cid of save.party) { const c = save.comps.find(x => x.id === cid); if (!c) continue; const S = SPECIES[c.species], st = compStats(c);
     const cw = MENTOR[c.species].w; const look = Object.assign({}, S.look, { angry: false, hair: c.hair, accessory: ACCS[c.acc], scale: 0.95, weapon: null, offhand: null, shield: null, bigShield: null }, WMODEL[cw], { weaponColor: elemColor(S.elem) });
-    const m = buildGirl(look); const e = makeEntity(m, { team: 0, name: c.name, comp: c, role: c.role, species: c.species, maxHp: st.hp, atk: st.atk, def: st.def, elem: st.elem, cd: rnd(0.5, 1.5), skillCd: rnd(2, 4), guard: 0 });
+    const m = buildGirl(humanLook(c.species, look)); addMotif(m, c.species); const e = makeEntity(m, { team: 0, name: c.name, comp: c, role: c.role, species: c.species, maxHp: st.hp, atk: st.atk, def: st.def, elem: st.elem, cd: rnd(0.5, 1.5), skillCd: rnd(2, 4), guard: 0 });
     const N = NICHE[c.species].self; e.maxHp = Math.round(e.maxHp * (N.hp || 1)); e.atk = Math.round(e.atk * (N.atk || 1)); e.def = e.def * (N.def || 1); e.dmgTaken = N.dmgTaken || 1; e.wtype = cw; e.wt = WEAPON_TYPES[cw];
     e.hp = e.maxHp; e.pos.set(rnd(-3, 3), 0, 9 + rnd(0, 2)); e.face = Math.PI; allies.push(e); }
   const monsters = node.mons.map((mn, i) => { const S = SPECIES[mn.sp], L = mn.lvl;
-    const m = buildGirl(Object.assign({}, S.look, { scale: (S.scale + L * 0.02) * MSCALE }));
+    const m = buildBeast(mn.sp, S.look, (S.scale + L * 0.02) * MSCALE); // v5.1: 적은 흐림에 삼켜진 짐승형
     const hp = Math.round(S.hp * (1 + 0.35 * (L - 1)) * (node.mons.length > 1 ? 0.75 : 1) * (node.mod === 'thick' && i === 0 ? 1.35 : 1));
     const e = makeEntity(m, { team: 1, sp: mn.sp, S, lvl: L, name: `${S.short} Lv${L}`, maxHp: hp, dmg: S.dmg * (1 + 0.15 * (L - 1)), speed: S.speed * (1 + 0.03 * L), elem: S.elem, weak: S.weak, ai: 'move', aiT: 1.5 + i, atkCd: 1.6 + i * 1.5, cur: null, aggro: null, taunt: 0, defDown: 0, slow: 0,
       parts: S.parts.map(p => ({ ...p, hp: Math.round(hp * 0.22), max: Math.round(hp * 0.22), broken: false })) });
@@ -357,8 +359,9 @@ function damageMonster(m, base, src, opt = {}) {
   if (src.isPlayer && Object.keys(m.status).length) dmg *= 1 + (Y.statusHit || 0) * (m.mod === 'ward' ? 0.5 : 1);
   if (src.isPlayer && wpt) dmg *= 1 + (Y.weakPart || 0);
   if (opt.crit) { dmg *= 1.6; cls = 'crit'; }
+  if (src.team === 0 && !src.isPlayer) { const tot = G.stats.dealt + (G.stats.compDealt || 0); if (tot > 200 && (G.stats.compDealt || 0) / tot > COMP_CAP) dmg *= 0.2; } // 동료는 조력자: 피해 비중 25% 넘으면 크게 줄임
   dmg = Math.round(dmg * rnd(0.92, 1.08));
-  m.hp = Math.max(0, m.hp - dmg); m.hitFlash = src.isPlayer ? 0.07 : 0; if (src.isPlayer) { G.stats.dealt += dmg; G.stats.totalHits++; }
+  m.hp = Math.max(0, m.hp - dmg); m.hitFlash = src.isPlayer ? 0.07 : 0; if (src.isPlayer) { G.stats.dealt += dmg; G.stats.totalHits++; } else if (src.team === 0) G.stats.compDealt = (G.stats.compDealt || 0) + dmg;
   if (opt.crit) cls += ' crit'; if (cls.includes('elem') || cls.includes('both')) cls += ' e-' + src.elem;
   popNum(opt.at || m.pos, String(dmg), cls.trim());
   const hp = (opt.at || m.pos.clone().setY(1.1 * m.S.scale)), w = src.isPlayer ? WEIGHT[src.wtype] || 1 : 0.5;
@@ -756,7 +759,7 @@ function animEnt(e, T) {
   if (e.glow) { const on = s === 'windup'; e.glow.visible = on; if (on) { e.glow.material.opacity = 0.1 + 0.08 * Math.sin(T * 18); } }
   if (s === 'windup' && e.cur) { a.kind = e.cur.anim; a.p = clamp(e.cur.t / e.cur.list[0].dur, 0, 1); }
   if (e.team === 0 && !e.isPlayer && s === 'attack') a.p = clamp(e.st / (e.atkDur || 0.4), 0, 1);
-  animate(e.model, a); if (e.team === 1) monsterBody(e, T); e.model.rotation.y = e.face;
+  if (e.model.userData.rig.beast) animateBeast(e.model, a); else animate(e.model, a); if (e.team === 1 && !e.model.userData.rig.beast) monsterBody(e, T); e.model.rotation.y = e.face;
   const flash = e.hitFlash > 0; if (flash !== e._fl) { e._fl = flash; e.model.traverse(o => { if (o.isMesh && (o.userData.om || o.material.isMeshToonMaterial)) { if (!o.userData.om) o.userData.om = o.material; o.material = flash ? hitMat : o.userData.om; } }); }
   if (e.status.freeze > 0 && !e._ice) { e._ice = true; } e.model.userData.rig.body.position.x = e.status.para > 0 ? Math.sin(T * 50) * 0.03 : 0;
 }
@@ -841,12 +844,32 @@ function ui(html, cls = '') { uiEl.innerHTML = html; uiEl.className = cls; }
 const S_ = SPECIES;
 // 2D 그림이 없는 종은 3D 모델을 찍어 초상화로 사용
 const portraitCache = {}; let pRend = null;
-function spImg(sp) { const S = S_[sp]; if (S.img) return S.img; if (portraitCache[sp]) return portraitCache[sp];
+function spImg(sp) { const S = S_[sp]; if (S.img) return S.img; return beastImg(sp); if (portraitCache[sp]) return portraitCache[sp];
   try { pRend = pRend || new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); pRend.setSize(180, 240, false); pRend.outputColorSpace = THREE.SRGBColorSpace;
     const sc = new THREE.Scene(); sc.background = new THREE.Color(new THREE.Color(ELEM[S.elem].col).multiplyScalar(0.35)); sc.add(new THREE.HemisphereLight(0xfff4e8, 0x5a6a4a, 1.8)); const dl = new THREE.DirectionalLight(0xffffff, 1.4); dl.position.set(2, 3, 4); sc.add(dl);
     const g = buildGirl(Object.assign({}, S.look, { scale: 1 })); sc.add(g); animate(g, { state: 'idle', time: 1, run: 0 }); g.rotation.y = 0.35;
     const cam = new THREE.PerspectiveCamera(32, 0.75, 0.1, 20); cam.position.set(0, 1.35, 2.7); cam.lookAt(0, 1.15, 0); pRend.render(sc, cam); portraitCache[sp] = pRend.domElement.toDataURL('image/jpeg', 0.85);
   } catch { portraitCache[sp] = 'icon-192.png'; } return portraitCache[sp]; }
+// v5.1 초상화: 몬스터는 짐승형(흐림), 동료는 사람형(정화 후). 2D 일러스트가 없으면 3D 모델을 찍어 대신함(ART_PROMPTS.md 참고)
+// v5.1: 정화된 수호자 사람형의 혈통 흔적 (늑대 귀·꼬리 망토, 얼음 관, 뿔+갑옷, 지느러미+산호, 여우 귀, 깃털 망토)
+const MOTIF = {
+  wolf: { ears: 1, tail: 1 }, kitsune: { ears: 1, tail: 1 }, drake: { horns: 1, armor: 1 }, harpy: { wings: 1 },
+  witch: { crown: 0xbfe8ff }, siren: { fins: 0x5fd0e0, coral: 0xff7a8a } };
+function humanLook(sp, base) { const S = S_[sp], M = MOTIF[sp] || {}, L = S.look;
+  return Object.assign({}, base, { ears: M.ears ? L.ears || true : null, tail: M.tail ? L.tail || L.hair : null, horns: M.horns ? L.horns || 0xffd54a : null, wings: M.wings ? L.wings || 0xcfe6c0 : null }); }
+function addMotif(g, sp) { const r = g.userData.rig, M = MOTIF[sp] || {}; if (!r) return;
+  if (M.crown) for (let i = 0; i < 5; i++) { const c = bodyPart(r.head, GEO.cone8, toon(M.crown), 0.035, 0.12 + (i === 2 ? 0.06 : 0), 0.035, (i - 2) * 0.07, 0.32, 0.05 - Math.abs(i - 2) * 0.02); c.rotation.z = (2 - i) * 0.15; }
+  if (M.fins) for (const s of [-1, 1]) { const f = bodyPart(r.head, GEO.cone8, toon(M.fins), 0.03, 0.14, 0.08, s * 0.2, 0.12, -0.02); f.rotation.z = -s * 1.1; }
+  if (M.coral) for (let i = 0; i < 3; i++) bodyPart(r.torso, GEO.sph, toon(M.coral), 0.03, 0.03, 0.03, -0.08 + i * 0.08, 0.3, 0.12);
+  if (M.armor) for (const s of [-1, 1]) bodyPart(r.torso, GEO.sph, toon(0x8a7a3a), 0.11, 0.06, 0.11, s * 0.17, 0.33, 0);
+}
+function snap(key, build, cam) { if (portraitCache[key]) return portraitCache[key];
+  try { pRend = pRend || new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); pRend.setSize(180, 240, false); pRend.outputColorSpace = THREE.SRGBColorSpace; pRend.toneMapping = THREE.ACESFilmicToneMapping;
+    const sc = new THREE.Scene(); const g = build(); sc.background = new THREE.Color(g.userData.bg ?? 0x2a2040); sc.add(new THREE.HemisphereLight(0xfff4e8, 0x5a6a4a, 1.9)); const dl = new THREE.DirectionalLight(0xffffff, 1.5); dl.position.set(2, 3, 4); sc.add(dl); sc.add(g);
+    const c = new THREE.PerspectiveCamera(32, 0.75, 0.1, 30); c.position.set(...cam[0]); c.lookAt(...cam[1]); pRend.render(sc, c); portraitCache[key] = pRend.domElement.toDataURL('image/jpeg', 0.85);
+  } catch { portraitCache[key] = 'icon-192.png'; } return portraitCache[key]; }
+function beastImg(sp) { return snap('beast:' + sp, () => { const g = buildBeast(sp, S_[sp].look, 1); animateBeast(g, { state: 'idle', time: 1 }); g.rotation.y = 1.25; g.userData.bg = new THREE.Color(ELEM[S_[sp].elem].col).multiplyScalar(0.3).getHex(); return g; }, [[2.6, 1.5, 4.2], [0, 0.6, 0]]); }
+function compImg(c) { return snap('comp:' + c.id + ':' + c.hair, () => { const S = S_[c.species]; const g = buildGirl(humanLook(c.species, Object.assign({}, S.look, { angry: false, hair: c.hair, accessory: ACCS[c.acc], weapon: null, offhand: null }, WMODEL[MENTOR[c.species].w], { weaponColor: elemColor(S.elem) }))); addMotif(g, c.species); animate(g, { state: 'idle', time: 1, run: 0 }); g.rotation.y = 0.35; g.userData.bg = new THREE.Color(ELEM[S.elem].col).multiplyScalar(0.35).getHex(); return g; }, [[0, 1.35, 2.7], [0, 1.15, 0]]); }
 const owned = (sp) => save.comps.some(c => c.species === sp);
 const PURIFY_NEED = 70, PURIFY_MIN_LVL = 2;
 let forgeType = 'sns';
@@ -925,7 +948,7 @@ function village() {
     const pc = save.party.map(id => save.comps.find(x => x.id === id)).filter(Boolean), TS = teamFx(pc, w.type), RS = rosterFx(save.comps);
     body = `<div class="synbox"><b>편성 ${pc.length}/3</b> · 시너지: ${TS.named.length ? TS.named.map(n => `<span class="tag pur">${n}</span>`).join('') : '<span class="note">없음 — 서로 다른 역할·조합·무기 궁합을 노려 보세요</span>'}<br><span class="note">해머는 헌터 전용(동료 스승 없음) · </span><span class="note">육성 보너스(Lv5+ ${RS.k}명): ${ROSTER.map(r => `<span class="${RS.k >= r.n ? 'up' : ''}">${r.n}명 ${r.d}</span>`).join(' · ')}</span></div>` +
       (save.comps.length ? `<div class="clist">` + save.comps.map(c => { const inP = save.party.includes(c.id), S = S_[c.species], N = NICHE[c.species], xm = xpMul(c, save.comps);
-      return `<div class="crow ${inP ? 'in' : ''}"><img src="${spImg(c.species)}" style="filter:hue-rotate(${c.hueDeg}deg)" alt=""><div class="t"><b>${c.name}</b> <span class="tag">${ROLES[c.role]}</span><span class="tag ${ELEM[S.elem].c}">${ELICON[S.elem]}${S.short}</span> Lv${c.level}/${10 + c.potential * 4}${xm !== 1 ? ` <span class="note">경험치×${xm}</span>` : ''}<br><span class="note">${N.icon} <b>${N.n}</b> ${N.d} · <span class="down">${N.weak}</span></span>${mentorLine(c, w.type)}</div>
+      return `<div class="crow ${inP ? 'in' : ''}"><img src="${compImg(c)}" alt=""><div class="t"><b>${c.name}</b> <span class="tag">${ROLES[c.role]}</span><span class="tag ${ELEM[S.elem].c}">${ELICON[S.elem]}${S.short}</span> Lv${c.level}/${10 + c.potential * 4}${xm !== 1 ? ` <span class="note">경험치×${xm}</span>` : ''}<br><span class="note">${N.icon} <b>${N.n}</b> ${N.d} · <span class="down">${N.weak}</span></span>${mentorLine(c, w.type)}</div>
       <div class="cbtn"><button class="btn sm ${inP ? '' : 'alt'}" data-party="${c.id}">${inP ? '해제' : '편성'}</button><button class="btn sm alt" data-cgear="${c.id}">장비</button><button class="btn sm alt" data-story="${c.id}">이야기</button><button class="btn sm alt" data-train="${c.id}">훈련</button></div></div>`; }).join('') + `</div>` : '<p>아직 동료가 없어요. 정화 점수 70 이상 + Lv2 이상 + 부위 파괴 1곳 이상이면 정화해 동료로 맞이할 수 있어요.</p>');
   } else if (tab === 'codex') {
     body = Object.entries(S_).map(([k, S]) => { const c = save.codex[k]; return `<div class="card"><img src="${spImg(k)}" alt=""><div class="t"><b class="${ELEM[S.elem].c}">${S.name}</b> ${owned(k) ? '<span class="tag pur">동료</span>' : ''}<br>${c ? `조우 ${c.seen} · 토벌 ${c.won} · 최고 Lv${c.maxLvl}<br><span class="note">약점 ${ELEM[S.weak].n} · 부위: ${S.parts.map(p => p.n).join(', ')} · 역할 후보: ${S.roles.map(r => ROLES[r]).join('/')}</span>` : '<span class="note">미조우</span>'}</div></div>`; }).join('') +
@@ -955,7 +978,7 @@ function gearScreen() {
     const canUp = g.lvl < 5 && matPoints(sp, 'hide') >= cost.hide && partPoints(sp) >= cost.part; const up = gearStat({ ...g, lvl: g.lvl + 1 }), now = gearStat(g);
     return `<div class="grow ${eq ? 'eq' : ''}"><span><b>${gearName(g)}</b>${sp === c.species ? ' <span class="tag pur">세트</span>' : ''}${usedBy ? ` <span class="tag">${usedBy.name} 착용</span>` : ''}<br><span class="note">${eq ? '장착 중' : `HP ${diff(cur.hp, nx.hp)} · 공격 ${diff(cur.atk, nx.atk)} · 방어 ${diff(Math.round(cur.def), Math.round(nx.def))}`}${g.lvl < 5 ? `<br>강화 +${g.lvl + 1}: HP +${up.hp - now.hp} 방어 +${up.def - now.def} (가죽 ${cost.hide}·부위 ${cost.part})` : '<br>최대 강화'}</span></span>
       <span class="col"><button class="btn sm ${eq ? 'alt' : ''}" data-gequip="${g.id}">${eq ? '해제' : '장착'}</button><button class="btn sm alt ${canUp ? '' : 'dis'}" data-gup="${g.id}">강화</button></span></div>`; }).join('') || '<p class="note">아직 토벌한 몬스터가 없어 만들 수 있는 방어구가 없어요.</p>';
-  ui(`<div class="gearhd"><img src="${spImg(c.species)}" style="filter:hue-rotate(${c.hueDeg}deg)" alt=""><div><b>${c.name}</b> <span class="tag">${S.short} 계열</span><br>HP <b>${cur.hp}</b> · 공격 <b>${cur.atk}</b> · 방어 <b>${Math.round(cur.def)}</b><br><span class="note">${S.short} 세트 ${sc}/3 · 2부위 공격 +10%${sc >= 2 ? '✔' : ''} · 3부위 HP +15%·${SETB[c.species]}${sc >= 3 ? '✔' : ''}</span></div></div>
+  ui(`<div class="gearhd"><img src="${compImg(c)}" alt=""><div><b>${c.name}</b> <span class="tag">${S.short} 계열</span><br>HP <b>${cur.hp}</b> · 공격 <b>${cur.atk}</b> · 방어 <b>${Math.round(cur.def)}</b><br><span class="note">${S.short} 세트 ${sc}/3 · 2부위 공격 +10%${sc >= 2 ? '✔' : ''} · 3부위 HP +15%·${SETB[c.species]}${sc >= 3 ? '✔' : ''}</span></div></div>
     <div class="gslots">${slots}</div><div class="glist">${opts}</div>
     <div class="row"><button class="btn sm alt" data-act="gback">← 동료</button><button class="btn sm alt" data-cw="${c.id}">공유 무기: ${weaponById(c.weapon) ? WEAPON_TYPES[weaponById(c.weapon).type].n : '없음'}</button></div>`, 'village gear');
 }
@@ -968,13 +991,13 @@ const chapOpen = (c, i) => { const u = STORY_UNLOCK[i], b = save.bond[c.species]
 function storyScreen() { const c = save.comps.find(x => x.id === storyComp); if (!c) { tab = 'party'; village(); return; } const S = S_[c.species], ch = STORIES[c.species], b = save.bond[c.species] || 0;
   const list = ch.map((x, i) => { const open = chapOpen(c, i), u = STORY_UNLOCK[i]; return `<button class="btn sm ${storyChap === i ? '' : 'alt'} ${open ? '' : 'dis'}" data-chap="${i}">${i + 1}장 ${open ? x.t : '🔒 인연 ' + u.bond + ' 또는 Lv' + u.lvl}</button>`; }).join('');
   const body = storyChap != null && chapOpen(c, storyChap) ? `<div class="storytext"><h2>${storyChap + 1}장 · ${ch[storyChap].t}</h2>${josaName(ch[storyChap].b, c.name).split('\n').map(l => `<p>${l}</p>`).join('')}</div>` : `<div class="storytext note">장을 골라 주세요. 인연은 ${josaName('{n}과', c.name)} 함께 사냥할 때마다 올라가요(성공 +2, 실패 +1).</div>`;
-  ui(`<div class="gearhd"><img src="${spImg(c.species)}" style="filter:hue-rotate(${c.hueDeg}deg)" alt=""><div><b>${c.name}의 이야기</b><br><span class="note">${S.short} 계열 · Lv${c.level} · 인연 ${b}</span></div></div><div class="tabs schap">${list}</div>${body}<div class="row"><button class="btn sm alt" data-act="gback">← 동료</button></div>`, 'village gear story');
+  ui(`<div class="gearhd"><img src="${compImg(c)}" alt=""><div><b>${c.name}의 이야기</b><br><span class="note">${S.short} 계열 · Lv${c.level} · 인연 ${b}</span></div></div><div class="tabs schap">${list}</div>${body}<div class="row"><button class="btn sm alt" data-act="gback">← 동료</button></div>`, 'village gear story');
 }
 function showResult() {
   const r = lastResult, sc = r.sc, m0 = r.mons[0], S = S_[m0.sp]; S.img2 = spImg(m0.sp);
   const rows = [['남은 시간', sc.time, 20], ['남은 체력', sc.hp, 20], ['부위 파괴', sc.parts, 30], ['피격 횟수 (' + r.st.hits + '회)', sc.hits, 15], ['속성 상성', sc.elem, 15]];
   const purifyBlock = !r.win ? `<p>사냥 실패. 그래도 <b>경험치 +${r.xp}</b>${Object.keys(r.drops).length ? '와 일부 소재' : ''}를 얻었어요. 다음엔 붉은 범위가 노랗게 차오를 때 회피해 보세요.</p>` :
-    r.purified ? `<p class="big">✨ ${r.purified} 정화 성공!</p><p class="note">${PURIFY_SCENE[r.purSp]}</p><p>${r.purified}: "${S_[r.purSp].lines.purify}"</p>` :
+    r.purified ? `<div class="xform"><img class="xb" src="${spImg(r.purSp)}" alt=""><img class="xg" src="${compImg(save.comps.find(c => c.id === r.purId))}" alt=""><div class="xl"></div>${Array.from({ length: 12 }, (_, i) => `<i class="sh" style="--a:${i * 30}deg;--d:${60 + (i % 3) * 25}px"></i>`).join('')}</div><p class="big">✨ ${r.purified} 정화 성공!</p><p class="note">${PURIFY_SCENE[r.purSp]}</p><p>${r.purified}: "${S_[r.purSp].lines.purify}"</p>` :
     (r.mons.map((m, i) => { const pi = r.purInfo[i], Sm = S_[m.sp];
       if (pi.own) return `<p>✔ <b>${Sm.short}</b>는 이미 동료예요. 정화 대신 <b>보너스 소재</b>를 받았어요.</p><p class="note">${PURIFY_FAIL.own}</p>`;
       if (pi.ok) return `<p class="big">${Sm.short} 정화 가능!</p><p class="note">종마다 단 한 명만 영입할 수 있어요. 역할을 고르세요.</p><div class="row">${Sm.roles.map(ro => `<button class="btn" data-pur="${i}:${ro}">${Sm.short} → ${ROLES[ro]}</button>`).join('')}</div>`;
@@ -993,7 +1016,7 @@ function purify(i, role) {
   const potential = clamp(Math.ceil(m.lvl / 2) + (r.sc.total >= 85 ? 1 : 0), 1, 5); const hueDeg = Math.round(rnd(30, 300));
   const hair = new THREE.Color(S.look.hair).offsetHSL(hueDeg / 360, 0, 0).getHex();
   const c = { id: newId('c'), name, species: m.sp, role, level: m.lvl, potential, hueDeg, hair, acc: save.comps.length % ACCS.length, weapon: null, armor: null, xp: 0 };
-  save.comps.push(c); if (save.party.length < 3) save.party.push(c.id); save.stats.purified++; r.purified = name; r.purSp = m.sp; r.canPurify = false; persist(); sfx('win'); showResult();
+  save.comps.push(c); if (save.party.length < 3) save.party.push(c.id); save.stats.purified++; r.purified = name; r.purSp = m.sp; r.purId = c.id; r.canPurify = false; persist(); sfx('win'); showResult();
 }
 uiEl.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
@@ -1050,5 +1073,5 @@ uiEl.addEventListener('change', async (e) => {
 });
 addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
-window.HN = { noteMoveForTest: (k) => noteMove(k), startTraining: (id) => startTraining(save.comps.find(c => c.id === id)), skipIntro: () => { save.opened = true; save.hero = save.hero || 'aria'; save.beats = BEATS.map(b => b.hr); persist(); village(); }, startHuntForTest: (i = 0) => { village(); clearIdle(); startHunt(save.nodes[i]); }, startHuntNode: (n) => { clearIdle(); startHunt(n); }, damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
+window.HN = { beastImg: (sp) => beastImg(sp), noteMoveForTest: (k) => noteMove(k), startTraining: (id) => startTraining(save.comps.find(c => c.id === id)), skipIntro: () => { save.opened = true; save.hero = save.hero || 'aria'; save.beats = BEATS.map(b => b.hr); persist(); village(); }, startHuntForTest: (i = 0) => { village(); clearIdle(); startHunt(save.nodes[i]); }, startHuntNode: (n) => { clearIdle(); startHunt(n); }, damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
 village();

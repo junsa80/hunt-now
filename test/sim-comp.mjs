@@ -31,3 +31,12 @@ const avg = {}; for (const c of SP) { let s = 0, n = 0; for (const m of SP) for 
 console.table(rows.map(r => ({ 몬스터: r.m, 특성: r.mod, 최선: r.top, 점수: r.s, 차선: r[2], 최하: r.low })));
 console.log('상황별 1위 횟수(42 상황):', JSON.stringify(best)); console.log('전체 평균 점수:', JSON.stringify(avg));
 const max = Math.max(...Object.values(best)); console.log(Object.values(best).every(v => v >= 1) && max <= 42 * 0.4 ? 'OK: 모든 동료가 1위 상황이 있고, 한 동료가 40% 넘게 독점하지 않음' : 'NG: 독점 또는 1위 없는 동료 있음');
+// v5.1 동료 피해 비중: 3인 파티, 0.5초 단위로 게임과 같은 소프트 상한(누적 비중 25% 초과 시 동료 피해 ×0.2) 적용
+{ const CAP = 0.25, shares = [], raws = [];
+  for (const wt of WEAPON_ORDER) for (const m of SP) for (let k = 0; k < SP.length; k++) { const party = [SP[k], SP[(k + 2) % 6], SP[(k + 4) % 6]];
+    const { fx } = teamFx(party.map(s => ({ species: s, role: 'dealer' })), wt); const H = 20 * (1 + fx.atk) * 1.12;
+    const C = party.reduce((a, s) => a + 9 * (NICHE[s].self.atk || 1) * (SPECIES[s].elem === SPECIES[m].weak ? 1.35 : 1), 0);
+    let h = 0, c = 0; const hp = SPECIES[m].hp * 4; while (h + c < hp) { h += H * 0.5; let d = C * 0.5; if (h + c > 200 && c / (h + c) > CAP) d *= 0.2; c += d; }
+    shares.push(c / (h + c)); raws.push(C / (H + C)); }
+  const st = a => { a.sort((x, y) => x - y); return `평균 ${(a.reduce((x, y) => x + y, 0) / a.length * 100).toFixed(1)}% · 최소 ${(a[0] * 100).toFixed(1)}% · 최대 ${(a[a.length - 1] * 100).toFixed(1)}%`; };
+  console.log(`동료 피해 비중(3인 파티, ${shares.length} 상황) — 상한 전: ${st(raws)} / 상한 후: ${st(shares)}`); }

@@ -7,7 +7,7 @@ export const SPECIES = {
     parts: [{ key: 'horn', n: '뿔', anchor: 'horn1' }, { key: 'tail', n: '꼬리', anchor: 'tailTip' }],
     roles: ['dealer', 'buffer'], trait: { n: '야성의 질주', d: '공격 속도 +20%' },
     lines: { meet: '불꽃 냄새가 나는 사냥꾼이네? 따라올 수 있으면 와 봐!', break: '내 뿔을…! 이제 진심이야!', win: '하아… 오늘은 네가 이겼어.', purify: '이 따뜻한 느낌… 너랑 같이 달려도 될까?', lose: '느려, 느려! 다음엔 더 빨리 와.' } },
-  witch: { name: '빙결 마녀 셀레스', short: '셀레스', elem: 'ice', weak: 'fire', img: 'img/enemy_celes.webp', hp: 440, dmg: 20, speed: 3.4, scale: 1.45, want: 6,
+  witch: { name: '빙결 마녀 셀레스', short: '셀레스', elem: 'ice', weak: 'fire', img: null /* 사람형 그림이라 짐승형 렌더로 대체 (ART_PROMPTS.md) */, hp: 440, dmg: 20, speed: 3.4, scale: 1.45, want: 6,
     look: { skin: 0xf2e6f0, hair: 0xbfe4ff, eye: '#4ac0ff', cloth: 0x2a3a7a, cloth2: 0x5a7ad8, accent: 0xe0f4ff, hairStyle: 'twin', horns: 0xbfe4ff, wings: 0xa0d8ff, weapon: 'staff', weaponColor: 0x7fd8ff, angry: true },
     parts: [{ key: 'crown', n: '얼음 관', anchor: 'horn1' }, { key: 'wing', n: '날개', anchor: 'wing' }],
     roles: ['healer', 'debuffer'], trait: { n: '서리 손길', d: '공격 시 빙결 축적' },

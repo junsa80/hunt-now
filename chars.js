@@ -211,3 +211,4 @@ function swingPose(r, style, p, wind, heavy, wtype) {
   const st = p >= wind ? 1 : easeIO(p / wind); r.legL.sh.rotation.x = -0.75 * st; r.legR.sh.rotation.x = 0.5 * st; r.legL.el.rotation.x = 0.6 * st; r.legR.el.rotation.x = 0.25 * st;
   if (wtype === 'db') { r.armL.sh.rotation.x = r.armR.sh.rotation.x; r.armL.sh.rotation.z = -r.armR.sh.rotation.z; }
 }
+export { part as bodyPart, G as GEO };
