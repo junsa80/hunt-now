@@ -1,6 +1,7 @@
 import * as THREE from './vendor/three.module.js';
 import { buildGirl, animate, setWeapon, toon, ownOutline, ATK_STYLE } from './chars.js';
 import { createFx, buildEnv, RIM } from './fx.js';
+import { STORIES, STORY_UNLOCK, BARKS } from './story.js';
 import { ELEM, STATUS, SPECIES, ROLES, ROLE_DESC, WEAPON_TYPES, WEAPON_ORDER, ELEM_SRC, QUAL, qualOf, NAMES, ACCS } from './data.js';
 
 const $ = (id) => document.getElementById(id);
@@ -10,7 +11,7 @@ const SAVE_KEY = 'huntnow.save', SAVE_V = 4;
 // ───────── 저장 ─────────
 function freshSave() {
   return { v: SAVE_V, savedAt: Date.now(), hr: 1, hrXp: 0, mats: {}, weapons: WEAPON_ORDER.map((t, i) => ({ id: 'w' + (i + 1), type: t, elem: 'none', lvl: 1 })),
-    armors: [{ id: 'a1', sp: 'none', lvl: 1 }], equip: { weapon: 'w1', armor: 'a1' }, comps: [], party: [], settings: { sound: true, vib: true, shake: true, dodgeBtn: true, hint: true, quality: 'auto' },
+    armors: [{ id: 'a1', sp: 'none', lvl: 1 }], equip: { weapon: 'w1', armor: 'a1' }, comps: [], party: [], settings: { sound: true, vib: true, shake: true, dodgeBtn: true, hint: true, quality: 'auto', dlg: true },
     stats: { hunts: 0, wins: 0, purified: 0, fails: 0 }, codex: {}, nodes: null, nextId: 20, cgear: [], bond: {}, story: {}, field: null };
 }
 function migrate(s) {
@@ -33,6 +34,7 @@ function migrate(s) {
   if (s.v < 4) { // v5(저장 v4): 동료 방어구·인연·스토리·필드. 기존 기록은 그대로 두고 빈 칸만 추가
     s.cgear = s.cgear || []; s.bond = s.bond || {}; s.story = s.story || {}; s.field = null; (s.comps || []).forEach(c => { c.gear = c.gear || {}; }); s.v = 4;
     s.notice = (s.notice ? s.notice + ' ' : '') + 'v5 업데이트: 동료 방어구(동료 → 장비), 필드 지도, 동료 개인 스토리가 추가됐어요. 기존 기록은 그대로예요.'; }
+  if (s.settings.dlg === undefined) s.settings.dlg = true;
   if (!s.settings.quality) s.settings.quality = 'auto'; // v4: 화질 설정 (저장 버전 유지, 기본값만 추가)
   return s;
 }
@@ -274,6 +276,8 @@ function startHunt(node) {
   G = { node, player, allies, monsters, time: HUNT_TIME, t: 0, hitstop: 0, slowmo: 0, shake: 0, lock: monsters[0], camYaw: Math.PI, camPos: new THREE.Vector3(0, 5, 16), over: false,
     stats: { hits: 0, broken: 0, weakHits: 0, totalHits: 0, dealt: 0, perfect: 0, guards: 0 }, buff: 0, log: [], sp: 30 };
   const first = monsters[0]; say(first.S.lines.meet, first.S.short); sfx('win');
+  if (save.settings.dlg) { const cs = allies.slice(1); if (cs.length) { const c = cs.find(a => monsters.some(m => m.sp === a.species)) || cs[0], B = BARKS[c.species], same = monsters.some(m => m.sp === c.species);
+    setTimeout(() => { if (G && !G.over) say(node.rar === 2 ? B.boss : same ? B.same : B.start, c.name); }, 2800); } }
   buildPartyHud(); banner('사냥 시작!', 900); $('holdName').textContent = holdName(w.type); $('spName').textContent = wt.sp.n;
   $('bDodge').classList.toggle('hidden', !save.settings.dodgeBtn); $('ctrlHint').classList.toggle('hidden', !save.settings.hint); $('ctrlHint').style.opacity = 1; setTimeout(() => { $('ctrlHint').style.opacity = 0; }, 7000);
 }
@@ -764,6 +768,7 @@ function endHunt(win) {
   const xp = win ? 40 + node.lvl * 20 : 15 + node.lvl * 5 + st.broken * 5;
   save.hrXp += xp; let ranked = false; while (save.hrXp >= save.hr * 100) { save.hrXp -= save.hr * 100; save.hr++; ranked = true; }
   const compXp = win ? 30 : 12; save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) { c.xp = (c.xp || 0) + compXp; while (c.xp >= c.level * 60 && c.level < 10 + c.potential * 4) { c.xp -= c.level * 60; c.level++; } } });
+  save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) save.bond[c.species] = (save.bond[c.species] || 0) + (win ? 2 : 1); });
   save.stats.hunts++; if (win) save.stats.wins++; else save.stats.fails++;
   for (const m of mons) { const cd = save.codex[m.sp] = save.codex[m.sp] || { seen: 0, won: 0, maxLvl: 0 }; cd.seen++; if (win) { cd.won++; cd.maxLvl = Math.max(cd.maxLvl, m.lvl); } }
   persist();
@@ -840,13 +845,13 @@ function village() {
   } else if (tab === 'party') {
     body = `<p class="note">사냥에 최대 3명 동행. 정화한 몬스터 소녀가 동료가 됩니다. 내가 만든 장비를 동료에게도 장착할 수 있어요(공유).</p>` + `<p class="note">동료 수집 <b>${save.comps.length}/${Object.keys(S_).length}종</b> · 같은 종은 한 명만 영입할 수 있어요.</p>` + (save.comps.length ? save.comps.map(c => { const st = compStats(c), inP = save.party.includes(c.id), w = weaponById(c.weapon), S = S_[c.species];
       return `<div class="card"><img src="${spImg(c.species)}" style="filter:hue-rotate(${c.hueDeg}deg)" alt=""><div class="t"><b>${c.name}</b> <span class="tag">${ROLES[c.role]}</span><span class="tag">${S.short} 계열</span><br>Lv${c.level} · 잠재력 ${'★'.repeat(c.potential)} · HP ${st.hp} 공격 ${st.atk}<br><span class="note">특성: ${S.trait.n}(${S.trait.d}) · ${ROLE_DESC[c.role]} · 장식: ${ACCS[c.acc].n}<br>무기: ${w ? WEAPON_TYPES[w.type].n + ' ' + ELEM[w.elem].n + ' +' + w.lvl : '없음'}</span></div>
-      <div class="row" style="flex-direction:column"><button class="btn sm ${inP ? '' : 'alt'}" data-party="${c.id}">${inP ? '편성 해제' : '편성'}</button><button class="btn sm alt" data-cw="${c.id}">무기 변경</button><button class="btn sm" data-cgear="${c.id}">장비</button></div></div>`; }).join('') : '<p>아직 동료가 없어요. 결과 화면에서 정화 점수가 기준을 넘으면 몬스터 소녀를 정화해 동료로 맞이할 수 있어요.</p>');
+      <div class="row" style="flex-direction:column"><button class="btn sm ${inP ? '' : 'alt'}" data-party="${c.id}">${inP ? '편성 해제' : '편성'}</button><button class="btn sm alt" data-cw="${c.id}">무기 변경</button><button class="btn sm" data-cgear="${c.id}">장비</button><button class="btn sm alt" data-story="${c.id}">스토리</button></div></div>`; }).join('') : '<p>아직 동료가 없어요. 결과 화면에서 정화 점수가 기준을 넘으면 몬스터 소녀를 정화해 동료로 맞이할 수 있어요.</p>');
   } else if (tab === 'codex') {
     body = Object.entries(S_).map(([k, S]) => { const c = save.codex[k]; return `<div class="card"><img src="${spImg(k)}" alt=""><div class="t"><b class="${ELEM[S.elem].c}">${S.name}</b> ${owned(k) ? '<span class="tag pur">동료</span>' : ''}<br>${c ? `조우 ${c.seen} · 토벌 ${c.won} · 최고 Lv${c.maxLvl}<br><span class="note">약점 ${ELEM[S.weak].n} · 부위: ${S.parts.map(p => p.n).join(', ')} · 역할 후보: ${S.roles.map(r => ROLES[r]).join('/')}</span>` : '<span class="note">미조우</span>'}</div></div>`; }).join('') +
       `<p class="note">사냥 ${save.stats.hunts} · 성공 ${save.stats.wins} · 실패 ${save.stats.fails} · 정화 ${save.stats.purified}</p>`;
   } else {
     const t = (k, n) => `<button class="btn sm ${save.settings[k] ? '' : 'alt'}" data-tog="${k}">${n}: ${save.settings[k] ? '켬' : '끔'}</button>`;
-    body = `<h2>효과</h2><div class="row">${t('sound', '효과음')}${t('vib', '진동')}${t('shake', '화면 흔들림')}</div><h2>화질</h2><div class="row">${[['auto', '자동'], ['high', '높음'], ['mid', '중간'], ['low', '낮음']].map(([k, n]) => `<button class="btn sm ${save.settings.quality === k ? '' : 'alt'}" data-q="${k}">${n}</button>`).join('')}</div><p class="note">자동: 사냥 중 프레임이 떨어지면 해상도·그림자·풀숲을 단계적으로 줄여요. 지금 단계: ${['낮음', '중간', '높음'][qLevel]}</p><h2>조작</h2><div class="row">${t('dodgeBtn', '회피 버튼 표시')}${t('hint', '조작 안내')}</div><p class="note">회피는 기본적으로 화면을 휙 밀어서 해요. 버튼이 편하면 회피 버튼을 켜세요(왼쪽 아래).</p>
+    body = `<h2>효과</h2><div class="row">${t('sound', '효과음')}${t('vib', '진동')}${t('shake', '화면 흔들림')}</div><h2>화질</h2><div class="row">${[['auto', '자동'], ['high', '높음'], ['mid', '중간'], ['low', '낮음']].map(([k, n]) => `<button class="btn sm ${save.settings.quality === k ? '' : 'alt'}" data-q="${k}">${n}</button>`).join('')}</div><p class="note">자동: 사냥 중 프레임이 떨어지면 해상도·그림자·풀숲을 단계적으로 줄여요. 지금 단계: ${['낮음', '중간', '높음'][qLevel]}</p><h2>조작</h2><div class="row">${t('dodgeBtn', '회피 버튼 표시')}${t('hint', '조작 안내')}${t('dlg', '동료 대사')}</div><p class="note">회피는 기본적으로 화면을 휙 밀어서 해요. 버튼이 편하면 회피 버튼을 켜세요(왼쪽 아래).</p>
       <h2>저장</h2><p class="note"><b>이 기기에만 저장 · 클라우드 동기화 없음.</b> 플레이 중 자동 저장돼요. 다른 기기로 옮기려면 백업 파일을 내보낸 뒤 그 기기에서 가져오세요.<br>저장 형식 v${save.v} · ${saveStatus}</p>
       <div class="row"><button class="btn sm" data-act="export">백업 내보내기</button><button class="btn sm alt" data-act="import">백업 가져오기</button><button class="btn sm alt" data-act="reset">기록 초기화</button></div><input type="file" id="impFile" accept="application/json,.json" class="hidden">
       <p class="note">설치: 브라우저 메뉴의 "홈 화면에 추가"로 앱처럼 실행할 수 있어요 (오프라인 지원).</p>`;
@@ -872,6 +877,17 @@ function gearScreen() {
   ui(`<div class="gearhd"><img src="${spImg(c.species)}" style="filter:hue-rotate(${c.hueDeg}deg)" alt=""><div><b>${c.name}</b> <span class="tag">${S.short} 계열</span><br>HP <b>${cur.hp}</b> · 공격 <b>${cur.atk}</b> · 방어 <b>${Math.round(cur.def)}</b><br><span class="note">${S.short} 세트 ${sc}/3 · 2부위 공격 +10%${sc >= 2 ? '✔' : ''} · 3부위 HP +15%·${SETB[c.species]}${sc >= 3 ? '✔' : ''}</span></div></div>
     <div class="gslots">${slots}</div><div class="glist">${opts}</div>
     <div class="row"><button class="btn sm alt" data-act="gback">← 동료</button></div>`, 'village gear');
+}
+let storyComp = null, storyChap = null;
+// 이름 뒤 조사를 받침에 맞춤: {n}은/는, 이/가, 을/를, 과/와
+function josaName(txt, nm) { const code = nm.charCodeAt(nm.length - 1) - 0xac00, jong = code >= 0 && code <= 11171 && code % 28 > 0;
+  const P = { 은: ['은', '는'], 는: ['은', '는'], 이: ['이', '가'], 가: ['이', '가'], 을: ['을', '를'], 를: ['을', '를'], 과: ['과', '와'], 와: ['과', '와'] };
+  return txt.replace(/\{n\}(은|는|이|가|을|를|과|와)?/g, (_, j) => nm + (j ? P[j][jong ? 0 : 1] : '')); }
+const chapOpen = (c, i) => { const u = STORY_UNLOCK[i], b = save.bond[c.species] || 0; return b >= u.bond || c.level >= u.lvl; };
+function storyScreen() { const c = save.comps.find(x => x.id === storyComp); if (!c) { tab = 'party'; village(); return; } const S = S_[c.species], ch = STORIES[c.species], b = save.bond[c.species] || 0;
+  const list = ch.map((x, i) => { const open = chapOpen(c, i), u = STORY_UNLOCK[i]; return `<button class="btn sm ${storyChap === i ? '' : 'alt'} ${open ? '' : 'dis'}" data-chap="${i}">${i + 1}장 ${open ? x.t : '🔒 인연 ' + u.bond + ' 또는 Lv' + u.lvl}</button>`; }).join('');
+  const body = storyChap != null && chapOpen(c, storyChap) ? `<div class="storytext"><h2>${storyChap + 1}장 · ${ch[storyChap].t}</h2>${josaName(ch[storyChap].b, c.name).split('\n').map(l => `<p>${l}</p>`).join('')}</div>` : `<div class="storytext note">장을 골라 주세요. 인연은 ${josaName('{n}과', c.name)} 함께 사냥할 때마다 올라가요(성공 +2, 실패 +1).</div>`;
+  ui(`<div class="gearhd"><img src="${spImg(c.species)}" style="filter:hue-rotate(${c.hueDeg}deg)" alt=""><div><b>${c.name}의 이야기</b><br><span class="note">${S.short} 계열 · Lv${c.level} · 인연 ${b}</span></div></div><div class="tabs schap">${list}</div>${body}<div class="row"><button class="btn sm alt" data-act="gback">← 동료</button></div>`, 'village gear story');
 }
 function showResult() {
   const r = lastResult, sc = r.sc, m0 = r.mons[0], S = S_[m0.sp]; S.img2 = spImg(m0.sp);
@@ -902,6 +918,8 @@ uiEl.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
   if (b.classList.contains('dis')) return;
   if (d.tab) { tab = d.tab; village(); return; }
+  if (d.story) { storyComp = d.story; storyChap = null; storyScreen(); return; }
+  if (d.chap !== undefined) { storyChap = +d.chap; storyScreen(); return; }
   if (d.cgear) { gearComp = d.cgear; gearScreen(); return; }
   if (d.gslot) { gearSlot = d.gslot; gearScreen(); return; }
   if (d.act === 'gback') { tab = 'party'; village(); return; }

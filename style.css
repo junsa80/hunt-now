@@ -138,3 +138,8 @@ h1{margin:4px 0 8px;font-size:24px}h2{font-size:18px;margin:14px 0 6px}
 .finfo{display:flex;gap:8px;align-items:center;justify-content:space-between;background:#ffffff12;border-radius:12px;padding:8px;min-height:64px;font-size:13px}
 @keyframes bob{50%{transform:translate(-50%,-58%)}}
 @media (orientation:portrait){#ui.village{top:22%}}
+
+/* ── v5 스토리 ── */
+.schap{flex-direction:column}.schap .btn{text-align:left}
+.storytext{flex:1;min-height:0;overflow:auto;background:#ffffff0e;border-radius:12px;padding:8px 12px;font-size:14px;line-height:1.6}
+.storytext h2{margin:2px 0 6px;font-size:16px}.storytext p{margin:0 0 6px}

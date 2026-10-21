@@ -46,7 +46,7 @@ let pass = 0, fail = 0; const ok = (n, c, i = '') => { c ? pass++ : fail++; cons
   await ev(() => { HN.save.comps[0].level = 10; HN.save.bond = { wolf: 99 }; document.querySelector('[data-act="gback"]').click(); }); await sleep(200);
   const st = await ev(() => !!document.querySelector('[data-story="c1"]'));
   if (st) { await page.click('[data-story="c1"]'); await sleep(300); await page.click('[data-chap="0"]'); await sleep(300);
-    ok('개인 스토리 열림(한국어 본문)', await ev(() => /[가-힣]{20}/.test(document.querySelector('.storytext')?.textContent || '')));
+    ok('개인 스토리 열림(한국어 본문)', await ev(() => (document.querySelector('.storytext')?.textContent || '').match(/[가-힣]/g)?.length > 200 && !/루루은|루루이 /.test(document.querySelector('.storytext').textContent)));
     ok('스토리 화면 스크롤 없음', await noScroll()); await page.screenshot({ path: OUT + '/v5-04-story.png' }); }
   else ok('개인 스토리 버튼', false);
   ok('JS 오류 없음', errors.length === 0, errors.slice(0, 3).join(' | '));
