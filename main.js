@@ -41,6 +41,7 @@ function migrate(s) {
     s.notice = (s.notice ? s.notice + ' ' : '') + 'v5 업데이트: 동료 방어구(동료 → 장비), 필드 지도, 동료 개인 스토리가 추가됐어요. 기존 기록은 그대로예요.'; }
   if (s.settings.dlg === undefined) s.settings.dlg = true; if (s.settings.tips === undefined) s.settings.tips = true; s.mUsed = s.mUsed || {}; s.mentor = s.mentor || {};
   if (s.opened === undefined) { s.opened = true; s.hero = s.hero || null; s.beats = BEATS.filter(b => b.hr < (s.hr || 1)).map(b => b.hr); } // 기존 플레이어: 오프닝 건너뛰고 주인공만 한 번 고름
+  s.codex = s.codex || {}; for (const k in s.codex) { const c = s.codex[k]; c.moves = c.moves || {}; c.broke = c.broke || {}; c.elems = c.elems || {}; c.hitBy = c.hitBy || {}; } // v5.2: 사냥 노트 칸 추가
   if (!s.settings.quality) s.settings.quality = 'auto'; // v4: 화질 설정 (저장 버전 유지, 기본값만 추가)
   return s;
 }
@@ -283,7 +284,7 @@ function startHunt(node) { $("trainBox").classList.add("hidden"); $("bPot").text
     e.hp = e.maxHp; e.pos.set(rnd(-3, 3), 0, 9 + rnd(0, 2)); e.face = Math.PI; allies.push(e); }
   const monsters = node.mons.map((mn, i) => { const S = SPECIES[mn.sp], L = mn.lvl;
     const m = buildBeast(mn.sp, S.look, (S.scale + L * 0.02) * MSCALE); // v5.1: 적은 흐림에 삼켜진 짐승형
-    const hp = Math.round(S.hp * 2.1 * (1 + 0.4 * (L - 1)) * (node.mons.length > 1 ? 0.75 : 1) * (node.mod === 'thick' && i === 0 ? 1.35 : 1));
+    const hp = Math.round(S.hp * 2.1 * (1 + 0.34 * (L - 1)) * (node.mons.length > 1 ? 0.75 : 1) * (node.mod === 'thick' && i === 0 ? 1.35 : 1));
     const e = makeEntity(m, { team: 1, sp: mn.sp, S, lvl: L, name: `${S.short} Lv${L}`, maxHp: hp, dmg: S.dmg * (1 + 0.2 * (L - 1)), speed: S.speed * (1 + 0.03 * L), elem: S.elem, weak: S.weak, ai: 'move', aiT: 1.5 + i, atkCd: 1.6 + i * 1.5, cur: null, aggro: null, taunt: 0, defDown: 0, slow: 0,
       parts: S.parts.map(p => ({ ...p, hp: Math.round(hp * 0.22), max: Math.round(hp * 0.22), broken: false })) });
     const glow = new THREE.Mesh(new THREE.SphereGeometry(0.75, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff2030, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending })); glow.scale.set(1, 1.6, 1); glow.position.y = 1.0; glow.visible = false; m.add(glow); e.glow = glow;
@@ -356,7 +357,7 @@ function damageMonster(m, base, src, opt = {}) {
   if (m.ai === 'topple') dmg *= 1.3; // 다운 중 큰 피해 찬스
   cls = wpt && weak ? 'both' : wpt ? 'wpt' : weak ? 'elem' : ''; // 흰색=일반 · 주황=약점 부위 · 속성색=약점 속성 · 빨강=둘 다
   if (m.defDown > 0) dmg *= 1.25; if (G.buff > 0 && src.team === 0) dmg *= 1.25;
-  if (m.ai === 'stun') dmg *= 1.15; if (m.ai === 'recover' && m.bigOpen) dmg *= 1.15; // 큰 기술 뒤 빈틈 보너스
+  if (m.ai === 'stun') dmg *= 1.15; if (m.ai === 'recover' && m.bigOpen) dmg *= 1.15; if (src.isPlayer && (m.ai === 'windup' || m.ai === 'strike') && !opt.heavy) dmg *= 0.6; // 공격 중엔 갑각에 튕김(가벼운 타) // 큰 기술 뒤 빈틈 보너스
   const Y = G.syn || {}; if (weak && m.mod === 'ward') dmg /= 1.2;
   if (src.isPlayer && Object.keys(m.status).length) dmg *= 1 + (Y.statusHit || 0) * (m.mod === 'ward' ? 0.5 : 1);
   if (src.isPlayer && wpt) dmg *= 1 + (Y.weakPart || 0);
@@ -425,6 +426,7 @@ function hurt(e, raw, el, from, big = false) {
     if (from) e.vel.addScaledVector(fwd(angTo(from.pos, e.pos)), e.wtype === 'lance' ? 1.5 : 4); return; }
   if (e.comp?.species === 'drake') dmg *= 0.8;
   if (e.role === 'tank' && e.guard > 0) { dmg *= 0.3; popNum(e.pos, '가드', 'info'); }
+  if (e.isPlayer && big) dmg = clamp(dmg, e.maxHp * 0.25, e.maxHp * 0.4); // 큰 기술 = 체력 25~40%
   dmg = Math.round(dmg); e.hp = Math.max(0, e.hp - dmg); popNum(e.pos, '-' + dmg, 'hurt'); e.hitFlash = 0.15;
   if (el) applyStatus(e, el, 30);
   if (e.isPlayer) { G.stats.hits++; e.state = 'hit'; e.st = 0; e.kd = big; e.invul = big ? 1.4 : 0.6; if (big) { popNum(e.pos, '넘어짐!', 'info'); G.shake = 0.6; } e.combo = -1; e.charge = 0; e.chargeLvl = 0; sfx('hurt'); vib(60); G.shake = Math.max(G.shake, 0.35);
@@ -648,7 +650,7 @@ function beginAttack(m, kind) {
     case 'sweep': list = [-2, -1, 0, 1, 2].map(i => T({ type: 'cone', x, z, a: a + i * 0.45, r: 6.5, ang: 0.6 }, 0.95 * wu + (i + 2) * 0.16)); anim = 'cast'; mult = 0.75; el = m.elem; break;
     case 'wingbeat': list = [T({ type: 'ring', x, z, r: 1.8 * m.S.scale / 1.45, r2: 6.8 }, 1.15 * wu)]; anim = 'cast'; mult = 1.2; el = m.elem; break;
     case 'tail2': list = [T({ type: 'circle', x, z, r: 3.0 * m.S.scale / 1.45 }, 0.85 * wu), T({ type: 'circle', x, z, r: 3.6 * m.S.scale / 1.45 }, 0.6, 0.85 * wu)]; anim = 'swing'; mult = 0.9; break;
-    case 'swat': list = [T({ type: 'cone', x, z, a, r: 2.8 * m.S.scale / 1.45, ang: 1.2 }, 0.45)]; anim = 'swing'; mult = 0.8; break;
+    case 'swat': list = [T({ type: 'cone', x, z, a, r: 2.8 * m.S.scale / 1.45, ang: 1.2 }, 0.6)]; anim = 'swing'; mult = 1.05; break;
     case 'spin': list = [T({ type: 'circle', x, z, r: 2.9 * m.S.scale / 1.45 }, 1.15 * wu)]; anim = 'swing'; mult = 1.0; break; // 뒤에 붙은 헌터 견제 (꼬리 휘두르기)
     case 'storm': list = [T({ type: 'circle', x, z, r: 3.5 }, 1.0 * wu), T({ type: 'ring', x, z, r: 5, r2: 8 }, 1.55 * wu)]; anim = 'cast'; el = 'thunder'; break;
   }
@@ -713,7 +715,7 @@ function fireShape(m, sh, c) {
   if (sh.type === 'line' && c.after?.dash === undefined) { /* 원거리 선 */ }
   const k = c.kind, big = BIG.has(k), horn = m.parts[0]?.broken && BREATH.has(k) ? 0.6 : 1;
   for (const a of G.allies) if (alive(a) && inShape(sh, a.pos.x, a.pos.z)) { const hp0 = a.hp; hurt(a, m.dmg * c.mult * (big ? 1.45 : 1) * horn, c.el, m, big);
-    if (a.isPlayer && a.hp < hp0) { G.stats.hitBy[k] = (G.stats.hitBy[k] || 0) + 1; G.stats.hitDmg[k] = (G.stats.hitDmg[k] || 0) + (hp0 - a.hp); } }
+    if (a.isPlayer && a.hp < hp0) { G.stats.hitBy[k] = (G.stats.hitBy[k] || 0) + 1; G.stats.hitDmg[k] = (G.stats.hitDmg[k] || 0) + (hp0 - a.hp); if (big) (G.stats.bigPct = G.stats.bigPct || []).push((hp0 - a.hp) / a.maxHp); } }
 }
 // 동료 AI
 function updComp(c, dt) {
@@ -798,7 +800,7 @@ function updHud() {
 }
 function animEnt(e, T) {
   const s = e.state, a = { state: s, time: T, run: e.run, p: 0, combo: e.combo, heavy: e.heavy, wtype: e.wtype };
-  if (s === 'attack') a.p = clamp(e.st / (e.atkDur || 0.4), 0, 1); if (s === 'roll') a.p = clamp(e.st / 0.42, 0, 1); if (s === 'special') a.p = clamp(e.st / e.wt.sp.dur, 0, 1); if (s === 'hit') a.p = clamp(e.st / 0.45, 0, 1); if (s === 'down') a.p = e.st;
+  if (s === 'attack') a.p = clamp(e.st / (e.atkDur || 0.4), 0, 1); if (s === 'roll') a.p = clamp(e.st / 0.42, 0, 1); if (s === 'special') a.p = clamp(e.st / e.wt.sp.dur, 0, 1); if (s === 'hit') a.p = clamp(e.st / 0.45, 0, 1); if (s === 'down') a.p = e.st; if (s === 'drink') a.p = clamp(e.st / 1.5, 0, 1);
   if (s === 'charge') a.lvl = e.chargeLvl + 1;
   if (s === 'roar') a.p = clamp(e.aiT / 1.7, 0, 1); if (s === 'topple') a.p = e.topT || 0; a.flinch = e.flinch || 0; a.limp = !!e.weakened; a.enraged = !!e.enraged; a.hitAt = e.wt?.hitAt;
   if (e.outl) { const wind = s === 'windup', gold = e.goldT > 0; // 몬헌 나우: 공격 직전 붉게 빛남 / 완벽 회피 노란 윤곽
@@ -879,7 +881,7 @@ function endHunt(win) {
   const compXp = win ? 30 : 12; save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) { c.xp = (c.xp || 0) + Math.round(compXp * xpMul(c, save.comps)); while (c.xp >= c.level * 60 && c.level < 10 + c.potential * 4) { c.xp -= c.level * 60; c.level++; } } });
   save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) save.bond[c.species] = (save.bond[c.species] || 0) + (win ? 2 : 1); });
   save.stats.hunts++; if (win) save.stats.wins++; else save.stats.fails++;
-  const noHit = win && st.hits === 0, clean = win && st.perfect >= 3, bo = (k, n) => { add(k, n); addMat(k, n); }; // 무피격·완벽 회피 3회 보상
+  st.dur = G.t; const noHit = win && st.hits === 0, clean = win && st.perfect >= 3, bo = (k, n) => { add(k, n); addMat(k, n); }; // 무피격·완벽 회피 3회 보상
   if (noHit) for (const m of mons) bo(`${m.sp}:${m.parts[0].key}:${qualOf(m.lvl)}`, 2); if (clean) for (const m of mons) bo(`${m.sp}:hide:${qualOf(m.lvl)}`, 2);
   const worst = Object.entries(st.hitDmg).sort((a, b) => b[1] - a[1])[0];
   const tip = worst ? { k: worst[0], n: st.hitBy[worst[0]], d: Math.round(worst[1]) } : null;
