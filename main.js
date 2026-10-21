@@ -363,6 +363,7 @@ function damageMonster(m, base, src, opt = {}) {
   popNum(opt.at || m.pos, String(dmg), cls.trim());
   const hp = (opt.at || m.pos.clone().setY(1.1 * m.S.scale)), w = src.isPlayer ? WEIGHT[src.wtype] || 1 : 0.5;
   burst(hp, src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xfff2c0, opt.heavy ? 18 : 8, opt.heavy ? 7 : 4);
+  if (src.isPlayer && qLevel > 0) hitGlow(hp, opt.crit ? 0x9ff8ff : src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xffe0a0, opt.heavy || opt.crit ? 1.6 : 1);
   if (src.isPlayer) { fx.impact(hp, opt.crit ? 0x9ff8ff : src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xfff0c0, (0.7 + 0.45 * w) * (opt.heavy ? 1.35 : 1), wpt); if (wpt) sfx('weak'); }
   if (m.ai !== 'topple' && m.ai !== 'roar') m.flinch = Math.max(m.flinch, src.isPlayer ? Math.min(1, 0.45 + 0.35 * w + (opt.heavy ? 0.3 : 0)) : 0.25);
   if (src.elem && src.elem !== 'none') applyStatus(m, src.elem, (opt.heavy ? 34 : 14) * (weak ? 1.3 : 1));
@@ -378,6 +379,19 @@ function damageMonster(m, base, src, opt = {}) {
 function topple(m, dur) { if (!alive(m)) return; clearMonsterTele(m); m.ai = 'topple'; m.aiT = dur; m.topT = 0; m.st = 0; m.flinch = 0; m.model.position.y = 0; G.stats.topples = (G.stats.topples || 0) + 1;
   banner('다운! 공격 찬스!', 1100); popNum(m.pos, '다운!', 'info'); sfx('topple'); fx.shock(m.pos, 0xffe8a0, 4 * m.S.scale, 0.45); G.shake = Math.max(G.shake, 0.35); G.zoomK = 1.08; }
 // 부위 파괴 연출: 금빛 폭발 + 파편 + 남은 부위는 금 간 색(어둡게)으로 바뀜
+// v5.1 블룸 느낌 글로우: 부드러운 원형 가산 스프라이트 8개 풀 (후처리 없이 가벼움)
+const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, '#fff'); gr.addColorStop(0.25, 'rgba(255,255,255,.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+const glows = Array.from({ length: 8 }, () => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 })); sp.visible = false; scene.add(sp); return { sp, t: 0, max: 0.2, s: 1 }; }); let glowI = 0;
+function hitGlow(pos, col, size) { const g = glows[glowI++ % glows.length]; g.sp.position.copy(pos); g.sp.material.color.setHex(col); g.t = g.max = 0.12 + 0.06 * size; g.s = 1.6 * size; g.sp.visible = true; }
+function updGlows(dt) { for (const g of glows) if (g.sp.visible) { g.t -= dt; if (g.t <= 0) { g.sp.visible = false; continue; } const k = g.t / g.max; g.sp.material.opacity = 0.9 * k; g.sp.scale.setScalar(g.s * (1.4 - 0.4 * k)); } }
+// v5.1 몬스터 몸짓: 숨쉬기(대기)·무거운 발걸음(이동)·예비 동작 웅크림→돌진 기울기(공격)
+function monsterBody(e, T) { const r = e.model.userData.rig; if (!r) return; const s = e.state;
+  if (s === 'idle' || s === 'stun') { r.torso.scale.y = 1 + 0.03 * Math.sin(T * 2.2 + e.lvl); r.torso.scale.x = 1 - 0.012 * Math.sin(T * 2.2 + e.lvl); }
+  else { r.torso.scale.set(1, 1, 1); }
+  if (s === 'run') { const st = Math.abs(Math.sin(T * 7)); r.body.position.y -= 0.05 * st; r.torso.rotation.x += 0.12; if (st < 0.08 && !e._step) { e._step = true; if (G && e.pos.distanceTo(G.player.pos) < 9) G.shake = Math.max(G.shake || 0, 0.04); } else if (st > 0.3) e._step = false; }
+  if (s === 'windup' && e.cur) { const p = clamp(e.cur.t / e.cur.list[0].dur, 0, 1); r.body.position.y -= 0.12 * p; r.torso.rotation.x -= 0.3 * p; r.body.scale.setScalar(1 + 0.04 * p); }
+  else r.body.scale.setScalar(1);
+  if (s === 'attack' || s === 'strike') r.torso.rotation.x += 0.35; }
 function breakFx(m, p) { const at = anchorWorld(m, p); fx.impact(at, 0xffd24a, 2.4, false); fx.shock(at.clone().setY(0), 0xffd24a, 3, 0.4); burst(at, 0x6a5a4a, 14, 6, 0.9);
   const u = m.model.userData; if (p.anchor === 'horn1' && u['horn-1']) { u['horn-1'].material = toon(0x8a7a6a); } }
 function killMonster(m) { m.ai = 'down'; m.aiT = 0; m.state = 'down'; m.st = 0; clearMonsterTele(m); say(m.S.lines.win, m.S.short); banner('토벌!'); sfx('win'); G.hitstop = 0.2; G.slowmo = 0.6;
@@ -742,7 +756,7 @@ function animEnt(e, T) {
   if (e.glow) { const on = s === 'windup'; e.glow.visible = on; if (on) { e.glow.material.opacity = 0.1 + 0.08 * Math.sin(T * 18); } }
   if (s === 'windup' && e.cur) { a.kind = e.cur.anim; a.p = clamp(e.cur.t / e.cur.list[0].dur, 0, 1); }
   if (e.team === 0 && !e.isPlayer && s === 'attack') a.p = clamp(e.st / (e.atkDur || 0.4), 0, 1);
-  animate(e.model, a); e.model.rotation.y = e.face;
+  animate(e.model, a); if (e.team === 1) monsterBody(e, T); e.model.rotation.y = e.face;
   const flash = e.hitFlash > 0; if (flash !== e._fl) { e._fl = flash; e.model.traverse(o => { if (o.isMesh && (o.userData.om || o.material.isMeshToonMaterial)) { if (!o.userData.om) o.userData.om = o.material; o.material = flash ? hitMat : o.userData.om; } }); }
   if (e.status.freeze > 0 && !e._ice) { e._ice = true; } e.model.userData.rig.body.position.x = e.status.para > 0 ? Math.sin(T * 50) * 0.03 : 0;
 }
@@ -751,7 +765,7 @@ let last = performance.now(), fpsAcc = 0, fpsN = 0, fps = 60;
 function loop(now) {
   requestAnimationFrame(loop); const rawDt = (now - last) / 1000; let dt = Math.min(0.05, rawDt); last = now; fpsAcc += rawDt; fpsN++; if (fpsAcc > 1) { fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
   if (G) step(dt); else idleScene(dt, now / 1000);
-  updParticles(dt); updTrails(dt); fx.update(dt); env.update(dt, now / 1000); autoQuality(rawDt); renderer.render(scene, camera);
+  updParticles(dt); updTrails(dt); updGlows(dt); fx.update(dt); env.update(dt, now / 1000); autoQuality(rawDt); renderer.render(scene, camera);
 }
 function step(rdt) {
   const T = performance.now() / 1000; pollInput();
