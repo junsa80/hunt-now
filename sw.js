@@ -1,5 +1,5 @@
 const C = 'hunt-now-v5';
-const FILES = ['./', 'index.html', 'style.css', 'main.js', 'chars.js', 'fx.js', 'data.js', 'story.js', 'lore.js', 'vendor/three.module.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png',
+const FILES = ['./', 'index.html', 'style.css', 'main.js', 'chars.js', 'fx.js', 'data.js', 'story.js', 'lore.js', 'synergy.js', 'mentor.js', 'vendor/three.module.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png',
   'img/hero_aria.webp', 'img/enemy_wolf.webp', 'img/enemy_celes.webp', 'img/enemy_drake.webp', 'img/gallery_g_party.webp'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(C).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k))))); self.clients.claim(); });

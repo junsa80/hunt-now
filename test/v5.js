@@ -70,6 +70,27 @@ let pass = 0, fail = 0; const ok = (n, c, i = '') => { c ? pass++ : fail++; cons
     ok('개인 스토리 열림(한국어 본문)', await ev(() => (document.querySelector('.storytext')?.textContent || '').match(/[가-힣]/g)?.length > 200 && !/루루은|루루이 /.test(document.querySelector('.storytext').textContent)));
     ok('스토리 화면 스크롤 없음', await noScroll()); await page.screenshot({ path: OUT + '/v5-04-story.png' }); }
   else ok('개인 스토리 버튼', false);
+  // 동료 역할·시너지 화면 (3명 편성)
+  await ev(() => { const S = HN.save; const mk = (id, sp, role, name) => ({ id, name, species: sp, role, level: 6, potential: 2, hueDeg: 0, hair: 0xffffff, acc: 0, weapon: null, armor: null, xp: 0, gear: {} });
+    S.comps = [S.comps[0], ...S.comps.slice(1).filter(c => !['drake', 'siren'].includes(c.species)), mk('c8', 'drake', 'tank', '노아'), mk('c9', 'siren', 'healer', '리아')].filter((c, i, a) => a.findIndex(x => x.species === c.species) === i);
+    S.party = [S.comps[0].id, 'c8', 'c9']; S.equip.weapon = S.weapons.find(w => w.type === 'lance').id; HN.village(); document.querySelector('[data-tab="party"]').click(); }); await sleep(400);
+  ok('동료 화면: 역할·약점·시너지 표시', await ev(() => /철벽 성소/.test(document.body.textContent) && /이중 방벽/.test(document.body.textContent) && /약점:/.test(document.body.textContent) && /육성 보너스/.test(document.body.textContent)));
+  ok('동료 화면 한 화면(스크롤 없음)', await noScroll()); await page.screenshot({ path: OUT + '/v5-10-party-synergy.png' });
+  // 사냥 중 스승 알림 (랜스 + 드라카)
+  await ev(() => HN.startHuntForTest(0)); await sleep(800);
+  ok('사냥: 시너지 적용(받는 피해 감소)', await ev(() => HN.G.syn.guardAll > 0.2 && HN.G.synNames.includes('이중 방벽')));
+  await sleep(1500); await ev(() => { HN.G.time = 999; }); await sleep(13500);
+  ok('스승 시범 알림 표시', await ev(() => document.getElementById('callout').textContent.includes('→')), await ev(() => document.getElementById('callout').textContent));
+  await page.screenshot({ path: OUT + '/v5-11-mentor-callout.png' });
+  await ev(() => HN.endHunt(false)); await sleep(900); await ev(() => document.querySelector('[data-act="village"]')?.click()); await sleep(300);
+  // 훈련
+  await ev(() => HN.startTraining('c8')); await sleep(800);
+  ok('훈련: 체크리스트 3동작 + 무기 랜스', await ev(() => document.querySelectorAll('#trainBox div').length === 3 && HN.G.player.wtype === 'lance'));
+  await page.screenshot({ path: OUT + '/v5-12-training.png' });
+  await ev(() => HN.noteMoveForTest('fin')); await sleep(200); ok('동작 체크 표시', await ev(() => document.querySelectorAll('#trainBox div.ok').length === 1));
+  await ev(() => { HN.noteMoveForTest('guard'); HN.noteMoveForTest('pd'); }); await sleep(2800);
+  ok('훈련 완료 → 스승 기술 1단 해금', await ev(() => HN.save.mentor.drake === 1 && /훈련 완료/.test(document.body.textContent)));
+  await page.screenshot({ path: OUT + '/v5-13-training-done.png' });
   ok('JS 오류 없음', errors.length === 0, errors.slice(0, 3).join(' | '));
   console.log(`${pass}/${pass + fail} 통과`); await browser.close();
 })();

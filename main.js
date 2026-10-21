@@ -2,6 +2,8 @@ import * as THREE from './vendor/three.module.js';
 import { buildGirl, animate, setWeapon, toon, ownOutline, ATK_STYLE } from './chars.js';
 import { createFx, buildEnv, RIM } from './fx.js';
 import { LORE, OPENING, HEROES, BEATS, PURIFY_SCENE, PURIFY_FAIL } from './lore.js';
+import { NICHE, MODS, MOD_KEYS, teamFx, rosterFx, xpMul, ROSTER } from './synergy.js';
+import { MENTOR, FADE_N, TECH_T1 } from './mentor.js';
 import { STORIES, STORY_UNLOCK, BARKS } from './story.js';
 import { ELEM, STATUS, SPECIES, ROLES, ROLE_DESC, WEAPON_TYPES, WEAPON_ORDER, ELEM_SRC, QUAL, qualOf, NAMES, ACCS } from './data.js';
 
@@ -12,7 +14,7 @@ const SAVE_KEY = 'huntnow.save', SAVE_V = 4;
 // ───────── 저장 ─────────
 function freshSave() {
   return { v: SAVE_V, savedAt: Date.now(), hr: 1, hrXp: 0, mats: {}, weapons: WEAPON_ORDER.map((t, i) => ({ id: 'w' + (i + 1), type: t, elem: 'none', lvl: 1 })),
-    armors: [{ id: 'a1', sp: 'none', lvl: 1 }], equip: { weapon: 'w1', armor: 'a1' }, comps: [], party: [], settings: { sound: true, vib: true, shake: true, dodgeBtn: true, hint: true, quality: 'auto', dlg: true },
+    armors: [{ id: 'a1', sp: 'none', lvl: 1 }], equip: { weapon: 'w1', armor: 'a1' }, comps: [], party: [], settings: { sound: true, vib: true, shake: true, dodgeBtn: true, hint: true, quality: 'auto', dlg: true, tips: true },
     stats: { hunts: 0, wins: 0, purified: 0, fails: 0 }, codex: {}, nodes: null, nextId: 20, cgear: [], bond: {}, story: {}, field: null, opened: false, hero: null, beats: [] };
 }
 function migrate(s) {
@@ -33,9 +35,10 @@ function migrate(s) {
     s.settings = Object.assign({ dodgeBtn: false, hint: true }, s.settings); s.nodes = null; s.v = 3; if (notes.length) s.notice = notes.join(' ');
   }
   if (s.v < 4) { // v5(저장 v4): 동료 방어구·인연·스토리·필드. 기존 기록은 그대로 두고 빈 칸만 추가
+    for (const t of WEAPON_ORDER) if (!(s.weapons || []).some(w => w.type === t && w.elem === 'none')) { s.weapons = s.weapons || []; s.weapons.push({ id: 'w' + (s.nextId++), type: t, elem: 'none', lvl: 1 }); }
     s.cgear = s.cgear || []; s.bond = s.bond || {}; s.story = s.story || {}; s.field = null; (s.comps || []).forEach(c => { c.gear = c.gear || {}; }); s.v = 4;
     s.notice = (s.notice ? s.notice + ' ' : '') + 'v5 업데이트: 동료 방어구(동료 → 장비), 필드 지도, 동료 개인 스토리가 추가됐어요. 기존 기록은 그대로예요.'; }
-  if (s.settings.dlg === undefined) s.settings.dlg = true;
+  if (s.settings.dlg === undefined) s.settings.dlg = true; if (s.settings.tips === undefined) s.settings.tips = true; s.mUsed = s.mUsed || {}; s.mentor = s.mentor || {};
   if (s.opened === undefined) { s.opened = true; s.hero = s.hero || null; s.beats = BEATS.filter(b => b.hr < (s.hr || 1)).map(b => b.hr); } // 기존 플레이어: 오프닝 건너뛰고 주인공만 한 번 고름
   if (!s.settings.quality) s.settings.quality = 'auto'; // v4: 화질 설정 (저장 버전 유지, 기본값만 추가)
   return s;
@@ -262,21 +265,27 @@ function startHunt(node) {
   const pm = buildGirl(Object.assign({ skin: 0xffe3d3, hair: 0xf5d36a, eye: '#3a8aff', cloth: 0xf2f2ff, cloth2: 0xd84a6a, accent: 0xffd54a, hairStyle: 'pony' }, heroOf().look, { weaponColor: w.elem === 'none' ? 0xdfe6ff : elemColor(w.elem) }, wm));
   const player = makeEntity(pm, { team: 0, name: '헌터', maxHp: 150 + armorDef(arm) * 0.5 | 0, atk: weaponAtk(w), def: armorDef(arm), elem: w.elem, wt, wtype: w.type, combo: -1, comboT: 0, queued: false, charge: 0, chargeLvl: 0, iframe: 0, rollStart: -9, invul: 0, counter: 0, hitsTaken: 0, isPlayer: true, spirit: 0, spiritLvl: 0, spiritT: 0, guardStart: -9, guarded: -9 });
   player.hp = player.maxHp; player.pos.set(0, 0, 8); player.face = Math.PI; player.outl = ownOutline(pm);
+  const partyC = save.party.map(id => save.comps.find(x => x.id === id)).filter(Boolean), TS = teamFx(partyC, w.type), RS = rosterFx(save.comps);
+  const tech = partyC.some(c => save.mentor[c.species] >= 1 && MENTOR[c.species].w === w.type); player.atk = Math.round(player.atk * (1 + TS.fx.atk + RS.fx.atk + (tech ? TECH_T1 : 0))); player.maxHp = Math.round(player.maxHp * (1 + RS.fx.hp)); player.hp = player.maxHp;
   const allies = [player];
   for (const cid of save.party) { const c = save.comps.find(x => x.id === cid); if (!c) continue; const S = SPECIES[c.species], st = compStats(c);
     const look = Object.assign({}, S.look, { angry: false, hair: c.hair, accessory: ACCS[c.acc], weapon: S.look.weapon, scale: 0.95 });
     const m = buildGirl(look); const e = makeEntity(m, { team: 0, name: c.name, comp: c, role: c.role, species: c.species, maxHp: st.hp, atk: st.atk, def: st.def, elem: st.elem, cd: rnd(0.5, 1.5), skillCd: rnd(2, 4), guard: 0 });
+    const N = NICHE[c.species].self; e.maxHp = Math.round(e.maxHp * (N.hp || 1)); e.atk = Math.round(e.atk * (N.atk || 1)); e.def = e.def * (N.def || 1); e.dmgTaken = N.dmgTaken || 1;
     e.hp = e.maxHp; e.pos.set(rnd(-3, 3), 0, 9 + rnd(0, 2)); e.face = Math.PI; allies.push(e); }
   const monsters = node.mons.map((mn, i) => { const S = SPECIES[mn.sp], L = mn.lvl;
     const m = buildGirl(Object.assign({}, S.look, { scale: (S.scale + L * 0.02) * MSCALE }));
-    const hp = Math.round(S.hp * (1 + 0.35 * (L - 1)) * (node.mons.length > 1 ? 0.75 : 1));
+    const hp = Math.round(S.hp * (1 + 0.35 * (L - 1)) * (node.mons.length > 1 ? 0.75 : 1) * (node.mod === 'thick' && i === 0 ? 1.35 : 1));
     const e = makeEntity(m, { team: 1, sp: mn.sp, S, lvl: L, name: `${S.short} Lv${L}`, maxHp: hp, dmg: S.dmg * (1 + 0.15 * (L - 1)), speed: S.speed * (1 + 0.03 * L), elem: S.elem, weak: S.weak, ai: 'move', aiT: 1.5 + i, atkCd: 1.6 + i * 1.5, cur: null, aggro: null, taunt: 0, defDown: 0, slow: 0,
       parts: S.parts.map(p => ({ ...p, hp: Math.round(hp * 0.22), max: Math.round(hp * 0.22), broken: false })) });
     const glow = new THREE.Mesh(new THREE.SphereGeometry(0.75, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff2030, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending })); glow.scale.set(1, 1.6, 1); glow.position.y = 1.0; glow.visible = false; m.add(glow); e.glow = glow;
+    e.mod = i === 0 ? node.mod || null : null; if (e.mod === 'fury') e.dmg *= 1.35; if (e.mod === 'rage') { e.enraged = true; e.rageDone = true; }
     armorize(m, S, L); e.outl = ownOutline(m); e.flinch = 0; e.turnRate = 2.4; e.lastK = null;
     e.hp = hp; e.pos.set((i - (node.mons.length - 1) / 2) * 5, 0, -6); e.face = 0; return e; });
   G = { node, player, allies, monsters, time: HUNT_TIME, t: 0, hitstop: 0, slowmo: 0, shake: 0, lock: monsters[0], camYaw: Math.PI, camPos: new THREE.Vector3(0, 5, 16), over: false,
-    stats: { hits: 0, broken: 0, weakHits: 0, totalHits: 0, dealt: 0, perfect: 0, guards: 0 }, buff: 0, log: [], sp: 30 };
+    stats: { hits: 0, broken: 0, weakHits: 0, totalHits: 0, dealt: 0, perfect: 0, guards: 0 }, buff: 0, log: [], sp: 30, syn: TS.fx, synNames: TS.named, spMul: 1 + RS.fx.sp };
+  if (TS.named.length) setTimeout(() => G && banner('시너지: ' + TS.named.join(' · '), 1400), 1100);
+  if (monsters[0].mod) setTimeout(() => G && say(`${MODS[monsters[0].mod].icon} ${MODS[monsters[0].mod].n} 개체 — ${MODS[monsters[0].mod].d}`), 5200);
   const first = monsters[0]; say(first.S.lines.meet, first.S.short); sfx('win');
   if (save.settings.dlg) { const cs = allies.slice(1); if (cs.length) { const c = cs.find(a => monsters.some(m => m.sp === a.species)) || cs[0], B = BARKS[c.species], same = monsters.some(m => m.sp === c.species);
     setTimeout(() => { if (G && !G.over) say(node.rar === 2 ? B.boss : same ? B.same : B.start, c.name); }, 2800); } }
@@ -289,6 +298,24 @@ function armorize(model, S, L) { const r = model.userData.rig; if (!r) return; c
   const add = (parent, geo, mat, x, y, z, rx = 0, rz = 0, sc = 1) => { if (!parent) return; const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); o.rotation.set(rx, 0, rz); o.scale.setScalar(sc); o.castShadow = true; parent.add(o); };
   for (const sd of [-1, 1]) { add(r.torso, PLATE, mC, 0.2 * sd, 0.36, 0, 0, -0.5 * sd); add(r.torso, SPIKE, mA, 0.27 * sd, 0.44, 0, 0, -0.9 * sd); const arm = sd < 0 ? r.armL : r.armR; add(arm?.el, BRACER, mC, 0, -0.12, 0); }
   const n = Math.min(5, 2 + Math.floor(L / 2)); for (let i = 0; i < n; i++) add(r.torso, SPIKE, mA, 0, 0.36 - i * 0.09, -0.14, -0.6, 0, 1 - i * 0.12); }
+// ── 스승 알림·훈련
+function noteMove(k) { if (!G) return; const key = G.player.wtype + ':' + k; save.mUsed[key] = (save.mUsed[key] || 0) + 1;
+  if (G.train) { const T = G.train; if (T.moves.some(m => m.k === k) && !T.done.includes(k)) { T.done.push(k); sfx('perfect'); vib(20); renderTrain(); if (T.done.length === T.moves.length) { save.mentor[T.sp] = Math.max(1, save.mentor[T.sp] || 0); persist(); banner('훈련 완료! ' + MENTOR[T.sp].tech + ' 1단', 1600); setTimeout(() => G && endHunt(true), 1800); } } } }
+let tipT = 0;
+const mentorLine = (c) => { const M = MENTOR[c.species]; return `<br><span class="note">🎓 ${WEAPON_TYPES[M.w].n} 스승 · ${M.tech} ${save.mentor[c.species] >= 1 ? '<span class="up">1단 ✔</span>' : '(훈련으로 1단)'}</span>`; };
+function mentorTips(dt) { if (!save.settings.tips || G.train) return; tipT -= dt; if (tipT > 0 || (G.tips || 0) >= 4) return; tipT = 14; // 14초에 한 번, 사냥당 최대 4회
+  const wt = G.player.wtype; const ex = G.allies.slice(1).filter(a => MENTOR[a.species]?.w === wt && alive(a)); if (!ex.length) return;
+  const a = ex[Math.floor(Math.random() * ex.length)], mv = MENTOR[a.species].moves.filter(m => (save.mUsed[wt + ':' + m.k] || 0) < FADE_N); if (!mv.length) return;
+  const m = mv[Math.floor(Math.random() * mv.length)]; G.tips = (G.tips || 0) + 1; a.cd = 0; a.burst = 2; callout(`${a.name}의 시범 · ${m.n}`, `${m.inp} → ${m.n}`); }
+let coT; function callout(t, s) { const el = $('callout'); el.innerHTML = `<b>${t}</b><span>${s}</span>`; el.classList.add('on'); clearTimeout(coT); coT = setTimeout(() => el.classList.remove('on'), 2600); }
+function renderTrain() { const T = G?.train, el = $('trainBox'); if (!T) { el.classList.add('hidden'); return; } el.classList.remove('hidden');
+  el.innerHTML = `<b>${T.name}의 ${MENTOR[T.sp].tech} 훈련</b>` + T.moves.map(m => `<div class="${T.done.includes(m.k) ? 'ok' : ''}">${T.done.includes(m.k) ? '✔' : '○'} ${m.n} <span>${m.inp}</span></div>`).join('') + `<button class="btn sm alt" id="trainQuit">그만두기</button>`;
+  $('trainQuit').onclick = () => { G && endHunt(false); }; }
+function startTraining(c) { const M = MENTOR[c.species]; const keepW = save.equip.weapon, keepP = save.party.slice(); let bw = save.weapons.find(x => x.type === M.w && x.elem === 'none'); if (!bw) { bw = { id: newId('w'), type: M.w, elem: 'none', lvl: 1 }; save.weapons.push(bw); } save.equip.weapon = bw.id; save.party = [c.id];
+  startHunt({ id: 't', lvl: 1, mons: [{ sp: 'drake', lvl: 1 }], train: true }); save.equip.weapon = keepW; save.party = keepP;
+  const d = G.monsters[0]; d.maxHp = d.hp = 99999; d.dmg = 0.5; d.name = '훈련용 허수아비'; d.parts.forEach(p => { p.hp = p.max = 99999; }); G.time = 60;
+  G.train = { sp: c.species, name: c.name, moves: M.moves, done: [] }; renderTrain();
+  let i = 0; const demo = () => { if (!G?.train) return; const left = M.moves.filter(m => !G.train.done.includes(m.k)); if (!left.length) return; const m = left[i++ % left.length]; callout(`${c.name}의 시범`, `${m.inp} → ${m.n}`); const a = G.allies[1]; if (a) { a.cd = 0; a.burst = 2; } setTimeout(demo, 6000); }; setTimeout(demo, 1200); }
 function buildPartyHud() { $('party').innerHTML = G.allies.slice(1).map((a, i) => `<div>${a.name} <span class="tag">${ROLES[a.role]}</span><i id="ph${i}"></i></div>`).join(''); }
 
 // ───────── 전투 로직 ─────────
@@ -319,6 +346,9 @@ function damageMonster(m, base, src, opt = {}) {
   cls = wpt && weak ? 'both' : wpt ? 'wpt' : weak ? 'elem' : ''; // 흰색=일반 · 주황=약점 부위 · 속성색=약점 속성 · 빨강=둘 다
   if (m.defDown > 0) dmg *= 1.25; if (G.buff > 0 && src.team === 0) dmg *= 1.25;
   if (m.ai === 'stun') dmg *= 1.15;
+  const Y = G.syn || {}; if (weak && m.mod === 'ward') dmg /= 1.2;
+  if (src.isPlayer && Object.keys(m.status).length) dmg *= 1 + (Y.statusHit || 0) * (m.mod === 'ward' ? 0.5 : 1);
+  if (src.isPlayer && wpt) dmg *= 1 + (Y.weakPart || 0);
   if (opt.crit) { dmg *= 1.6; cls = 'crit'; }
   dmg = Math.round(dmg * rnd(0.92, 1.08));
   m.hp = Math.max(0, m.hp - dmg); m.hitFlash = src.isPlayer ? 0.07 : 0; if (src.isPlayer) { G.stats.dealt += dmg; G.stats.totalHits++; }
@@ -332,7 +362,7 @@ function damageMonster(m, base, src, opt = {}) {
   if (src.comp?.species === 'witch') applyStatus(m, 'ice', 6); if (src.comp?.species === 'kitsune') applyStatus(m, 'fire', 6);
   if (src.isPlayer && G.player.state !== 'special') G.sp = Math.min(100, G.sp + (opt.heavy ? 7 : 3.2));
   // 부위
-  if (opt.part && !opt.part.broken) { const p = opt.part; p.hp -= dmg * (opt.heavy ? 1.4 : 1);
+  if (opt.part && !opt.part.broken) { const p = opt.part; p.hp -= dmg * (opt.heavy ? 1.4 : 1) * (1 + (G.syn?.part || 0)) * (m.mod === 'hard' ? 0.5 : 1);
     if (p.hp <= 0) { p.broken = true; G.stats.broken++; setPartVisible(m, p, false); breakFx(m, p); topple(m, 3.4);
       banner(`${p.n} 파괴!`); say(p === m.parts[0] ? m.S.lines.break : `크윽… 내 ${p.n}이…!`, m.S.short); sfx('brk'); vib([40, 30, 80]); G.shake = 0.5; G.hitstop = 0.12;
       burst(anchorWorld(m, p), 0xffd24a, 28, 8, 0.8); G.log.push(p.n + ' 파괴'); } }
@@ -344,18 +374,20 @@ function topple(m, dur) { if (!alive(m)) return; clearMonsterTele(m); m.ai = 'to
 function breakFx(m, p) { const at = anchorWorld(m, p); fx.impact(at, 0xffd24a, 2.4, false); fx.shock(at.clone().setY(0), 0xffd24a, 3, 0.4); burst(at, 0x6a5a4a, 14, 6, 0.9);
   const u = m.model.userData; if (p.anchor === 'horn1' && u['horn-1']) { u['horn-1'].material = toon(0x8a7a6a); } }
 function killMonster(m) { m.ai = 'down'; m.aiT = 0; m.state = 'down'; m.st = 0; clearMonsterTele(m); say(m.S.lines.win, m.S.short); banner('토벌!'); sfx('win'); G.hitstop = 0.2; G.slowmo = 0.6;
-  if (G.lock === m) G.lock = nearestMonster(G.player.pos); if (G.monsters.every(x => !alive(x))) setTimeout(() => endHunt(true), 1800); }
+  if (G.lock === m) G.lock = nearestMonster(G.player.pos); if (G.monsters.every(x => !alive(x))) { const g = G; setTimeout(() => G === g && endHunt(true), 1800); } }
 function clearMonsterTele(m) { if (m.cur) { m.cur.teles.forEach(killTele); m.cur = null; } }
 function hurt(e, raw, el, from) {
   if (!alive(e) || G.over) return;
   if (e.isPlayer && e.iframe > 0) { // 회피 성공
-    if (G.t - e.rollStart < 0.3) { if (!e._pd || G.t - e._pd > 0.5) { e._pd = G.t; G.stats.perfect++; e.counter = 1.6; e.goldT = 0.9; G.sp = Math.min(100, G.sp + 12); G.slowmo = 0.35; $('flash').style.opacity = 0.5; setTimeout(() => $('flash').style.opacity = 0, 90); sfx('perfect'); vib(25); popNum(e.pos, '완벽 회피!', 'info'); $('counter').classList.remove('hidden'); } }
+    if (G.t - e.rollStart < 0.3 + (G.syn?.pd || 0)) { if (!e._pd || G.t - e._pd > 0.5) { e._pd = G.t; G.stats.perfect++; noteMove('pd'); e.counter = 1.6; e.goldT = 0.9; G.sp = Math.min(100, G.sp + (12 + (G.syn?.pdSp || 0)) * G.spMul); G.slowmo = 0.35; $('flash').style.opacity = 0.5; setTimeout(() => $('flash').style.opacity = 0, 90); sfx('perfect'); vib(25); popNum(e.pos, '완벽 회피!', 'info'); $('counter').classList.remove('hidden'); } }
     else popNum(e.pos, '회피', 'info'); return; }
   if (e.invul > 0) return;
   if (e.isPlayer && e.state === 'special') { popNum(e.pos, '무적', 'info'); return; }
   let dmg = raw * defMul(e.def || 0);
+  if (from && from.enraged) dmg *= (from.mod === 'rage' ? 1.4 : 1) * (1 - 0.3 * Math.min(1, G.syn?.rage || 0));
+  if (e.isPlayer) dmg *= 1 - (G.syn?.guardAll || 0); else if (e.dmgTaken) dmg *= e.dmgTaken;
   if (e.isPlayer && e.status.soak > 0) dmg *= 1.2;
-  if (e.isPlayer && e.state === 'guard') { const just = G.t - e.guardStart < 0.25; e.guarded = G.t; G.stats.guards++;
+  if (e.isPlayer && e.state === 'guard') { const just = G.t - e.guardStart < 0.25; e.guarded = G.t; G.stats.guards++; noteMove('guard');
     if (just) { e.counter = 1.6; $('counter').classList.remove('hidden'); popNum(e.pos, '저스트 가드!', 'info'); sfx('perfect'); vib(25); G.sp = Math.min(100, G.sp + 10); G.hitstop = 0.08; return; }
     dmg *= e.wtype === 'lance' ? 0.15 : 0.3; dmg = Math.max(1, Math.round(dmg)); e.hp = Math.max(1, e.hp - dmg); popNum(e.pos, '가드 -' + dmg, 'info'); sfx('hit'); vib(20);
     if (from) e.vel.addScaledVector(fwd(angTo(from.pos, e.pos)), e.wtype === 'lance' ? 1.5 : 4); return; }
@@ -366,7 +398,7 @@ function hurt(e, raw, el, from) {
   if (e.isPlayer) { G.stats.hits++; e.state = 'hit'; e.st = 0; e.invul = 0.6; e.combo = -1; e.charge = 0; e.chargeLvl = 0; sfx('hurt'); vib(60); G.shake = Math.max(G.shake, 0.35);
     if (from) { const k = fwd(angTo(from.pos, e.pos)); e.vel.addScaledVector(k, 8); } }
   else { e.invul = 0.4; if (e.state !== 'guard') { e.state = 'hit'; e.st = 0; } }
-  if (e.hp <= 0) { e.state = 'down'; e.st = 0; if (e.isPlayer) { banner('쓰러졌다…'); setTimeout(() => endHunt(false), 1600); G.over = true; } else popNum(e.pos, '전투 불능', 'info'); }
+  if (e.hp <= 0) { e.state = 'down'; e.st = 0; if (e.isPlayer) { banner('쓰러졌다…'); { const g = G; setTimeout(() => G === g && endHunt(false), 1600); } G.over = true; } else popNum(e.pos, '전투 불능', 'info'); }
 }
 // ───────── 플레이어 무기 액션 ─────────
 const HEAD_PARTS = ['horn', 'crown', 'ear', 'crest'];
@@ -439,9 +471,9 @@ function updSpecial(p, dt) {
 }
 function holdName(t) { return { guard: '방패 가드', charge: t === 'bow' ? '모아 쏘기' : '모으기', spirit: '기인 베기', dance: '귀인 난무', counter: '가드·카운터' }[WEAPON_TYPES[t].hold]; }
 function releaseCharge(p) {
-  const wt = p.wt, lvl = Math.max(1, p.chargeLvl); p.charge = 0; p.chargeLvl = 0; setRing(0);
+  const wt = p.wt, lvl = Math.max(1, p.chargeLvl); p.charge = 0; p.chargeLvl = 0; setRing(0); if (lvl >= 3 && wt.hold === 'charge') noteMove('charge3');
   if (wt.hold === 'spirit') { const full = p.chargeT >= wt.chargeStep; let mult = 1.3;
-    if (full && p.spirit >= 25) { p.spirit -= 25; mult = 2.4; p.spiritLvl = Math.min(3, p.spiritLvl + 1); p.spiritT = 25; popNum(p.pos, ['', '기력 백', '기력 황', '기력 적'][p.spiritLvl], 'info'); }
+    if (full && p.spirit >= 25) { noteMove('spirit'); p.spirit -= 25; mult = 2.4; p.spiritLvl = Math.min(3, p.spiritLvl + 1); p.spiritT = 25; popNum(p.pos, ['', '기력 백', '기력 황', '기력 적'][p.spiritLvl], 'info'); }
     else if (full) popNum(p.pos, '기력 부족', 'info');
     p.state = 'attack'; p.st = 0; p.heavy = true; p.combo = 3; p.atkDur = 0.55; p.mult = mult; p.hitDone = false; p.wide = true; sfx('swing'); return; }
   if (wt.ranged) { p.state = 'attack'; p.st = 0; p.heavy = true; p.combo = 0; p.atkDur = 0.32; p.mult = wt.charge[lvl - 1]; p.hitDone = false; p.spread = lvl >= 3; return; }
@@ -477,7 +509,7 @@ function updPlayer(p, dt) {
   if (input.atkDown && free && !p.holdUsed) { p.holdUsed = true; input.tapBuf = -9;
     if (wt.hold === 'charge' || wt.hold === 'spirit') { p.state = 'charge'; p.charge = 0; p.chargeLvl = 0; p.chargeT = 0; }
     else if (wt.hold === 'guard' || wt.hold === 'counter') { p.state = 'guard'; p.guardStart = G.t; p.guarded = -9; }
-    else if (wt.hold === 'dance') { p.state = 'dance'; p.st = 0; p.danceNext = 0; } }
+    else if (wt.hold === 'dance') { noteMove('dance'); p.state = 'dance'; p.st = 0; p.danceNext = 0; } }
   if (!input.atkDown) p.holdUsed = false;
   if (p.state === 'charge') {
     aimLock(); p.charge += dt; p.chargeT = p.charge;
@@ -511,7 +543,7 @@ function updPlayer(p, dt) {
   if (ml > 0.12) { const tf = Math.atan2(mv.x, mv.z); p.face = lerpAng(p.face, tf, Math.min(1, dt * 16)); p.pos.addScaledVector(mv.clone().normalize(), 6.4 * Math.min(1, ml * 1.3) * spdMul * dt); p.run = Math.min(1, ml); p.state = 'run'; }
   else { p.run = Math.max(0, p.run - dt * 6); p.state = 'idle'; }
 }
-function startCombo(p, i) { const wt = p.wt; p.combo = i; p.state = 'attack'; p.st = 0; p.heavy = false; p.atkDur = wt.combo[i] * (p.counter > 0 ? 0.75 : 1); p.mult = wt.mult[i]; p.hitDone = false; p.hit2 = false; p.queued = false; p.spread = false; p.lunged = false;
+function startCombo(p, i) { const wt = p.wt; if (i === wt.combo.length - 1) noteMove('fin'); p.combo = i; p.state = 'attack'; p.st = 0; p.heavy = false; p.atkDur = wt.combo[i] * (p.counter > 0 ? 0.75 : 1); p.mult = wt.mult[i]; p.hitDone = false; p.hit2 = false; p.queued = false; p.spread = false; p.lunged = false;
   if (G.lock && G.lock.pos.distanceTo(p.pos) < (wt.ranged ? 22 : 8)) p.face = angTo(p.pos, G.lock.pos); if (!wt.ranged) sfx('swing'); G.stats.taps = (G.stats.taps || 0) + 1; }
 function setRing(k, lvl = 0) { const r = $('holdRing'); if (!k) { r.style.opacity = 0; return; } r.style.opacity = 1; r.style.left = input.hx + 'px'; r.style.top = input.hy + 'px';
   const c = r.querySelector('circle'); c.style.strokeDashoffset = 289 * (1 - k); c.style.stroke = ['#ffffff', '#ffffff', '#ffe066', '#ff5050'][lvl] || '#ffe066'; }
@@ -588,7 +620,7 @@ function updMonster(m, dt) {
     const want = (m.S.want || 2.6) * (MSCALE * 0.9), wantA = angTo(m.pos, tgt.pos), diff = lerpAng(0, wantA - m.face, 1);
     m.face += clamp(diff, -m.turnRate * dt * sMul, m.turnRate * dt * sMul); // 회전 속도 한계
     if (Math.abs(d - want) > 0.8 && Math.abs(diff) < 1.2) { const dir = d > want ? 1 : (want >= 5 ? -0.6 : 0); if (!dir) { m.run = 0; m.state = 'idle'; } else { m.pos.addScaledVector(fwd(m.face), m.speed * 0.6 * sMul * dir * dt); m.run = 0.8; m.state = 'run'; } } else { m.run = Math.abs(diff) > 0.3 ? 0.4 : 0; m.state = m.run ? 'run' : 'idle'; }
-    m.atkCd -= dt * sMul;
+    m.atkCd -= dt * sMul * (m.mod === 'swift' ? 1.43 : 1);
     if (m.atkCd <= 0) {
       if (!m.roared) { m.roared = true; m.roarWhy = 'meet'; startRoar(m, 'meet'); return; } // 조우 포효
       if (m.pendingRoar) { m.roarWhy = m.pendingRoar; startRoar(m, m.pendingRoar); return; }
@@ -720,7 +752,7 @@ function step(rdt) {
   if (G.hitstop > 0) { G.hitstop -= rdt; G.allies.concat(G.monsters).forEach(e => animEnt(e, T)); updCamera(rdt); return; }
   let dt = rdt; if (G.slowmo > 0) { G.slowmo -= rdt; dt *= 0.3; }
   G.t += dt; G.shake = Math.max(0, G.shake - rdt * 1.6); G.buff = Math.max(0, G.buff - dt);
-  if (!G.over) { G.time -= dt; if (G.time <= 0) { G.time = 0; G.over = true; banner('시간 초과'); setTimeout(() => endHunt(false), 1400); } }
+  if (!G.over) { G.time -= dt; if (G.time <= 0) { G.time = 0; G.over = true; banner('시간 초과'); { const g = G; setTimeout(() => G === g && endHunt(false), 1400); } } }
   const p = G.player;
   if (!G.over || alive(p)) updPlayer(p, dt);
   p.pos.addScaledVector(p.vel, dt); p.vel.multiplyScalar(Math.max(0, 1 - dt * 8));
@@ -732,6 +764,8 @@ function step(rdt) {
   const lp = G.lock && alive(G.lock) && G.lock.parts.find(x => !x.broken);
   if (lp) { weakMark.visible = true; weakMark.position.copy(anchorWorld(G.lock, lp)); const k = G.lock.ai === 'stun' || G.lock.ai === 'recover' ? 1.6 : 1; weakMark.scale.setScalar(k * (1 + Math.sin(T * 8) * 0.25)); weakMark.material.opacity = G.lock.ai === 'recover' || G.lock.ai === 'stun' ? 0.8 : 0.4; } else weakMark.visible = false;
   for (const m of G.monsters) if (m.run > 0.6 && Math.random() < 0.18) burst(m.pos.clone().setY(0.08), 0xb89c78, 2, 1.6, 0.4); // 발걸음 먼지
+  mentorTips(rdt);
+  if (G.syn?.regen) for (const a of G.allies) if (alive(a)) a.hp = Math.min(a.maxHp, a.hp + a.maxHp * G.syn.regen * rdt);
   updCamera(rdt); updHud();
 }
 // 마을 배경 연출용 캐릭터
@@ -749,6 +783,7 @@ requestAnimationFrame(loop);
 let lastResult = null;
 function endHunt(win) {
   if (!G || G.done) return; G.done = true; G.over = true;
+  if (G.train) { const T = G.train, done = save.mentor[T.sp] >= 1; persist(); setTimeout(() => { teardown(); renderTrain(); ui(`<div class="op"><h1>${done ? '✔ 훈련 완료' : '훈련 종료'}</h1><p>${done ? `${T.name}: "잘 따라 했어. 이제 ${MENTOR[T.sp].tech} 1단이야."<br><span class="note">${josaName('{n}을', T.name)} 편성하고 ${josaName('{n}을', WEAPON_TYPES[MENTOR[T.sp].w].n)} 들면 헌터 공격 +${TECH_T1 * 100}%</span>` : `${T.done.length}/${T.moves.length} 동작 성공. 언제든 다시 해 볼 수 있어요.`}</p><div class="row"><button class="btn" data-act="village">동료로</button></div></div>`, 'village gear op-wrap'); tab = 'party'; }, 400); return; }
   const st = G.stats, p = G.player, node = G.node, mons = G.monsters;
   // 정화 점수 (전투 결과만으로 산정)
   const timeR = G.time / HUNT_TIME, hpR = p.hp / p.maxHp, totalParts = mons.reduce((a, m) => a + m.parts.length, 0);
@@ -769,7 +804,7 @@ function endHunt(win) {
   for (const k in drops) addMat(k, drops[k]);
   const xp = win ? 40 + node.lvl * 20 : 15 + node.lvl * 5 + st.broken * 5;
   save.hrXp += xp; let ranked = false; while (save.hrXp >= save.hr * 100) { save.hrXp -= save.hr * 100; save.hr++; ranked = true; }
-  const compXp = win ? 30 : 12; save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) { c.xp = (c.xp || 0) + compXp; while (c.xp >= c.level * 60 && c.level < 10 + c.potential * 4) { c.xp -= c.level * 60; c.level++; } } });
+  const compXp = win ? 30 : 12; save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) { c.xp = (c.xp || 0) + Math.round(compXp * xpMul(c, save.comps)); while (c.xp >= c.level * 60 && c.level < 10 + c.potential * 4) { c.xp -= c.level * 60; c.level++; } } });
   save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) save.bond[c.species] = (save.bond[c.species] || 0) + (win ? 2 : 1); });
   save.stats.hunts++; if (win) save.stats.wins++; else save.stats.fails++;
   for (const m of mons) { const cd = save.codex[m.sp] = save.codex[m.sp] || { seen: 0, won: 0, maxLvl: 0 }; cd.seen++; if (win) { cd.won++; cd.maxLvl = Math.max(cd.maxLvl, m.lvl); } }
@@ -810,16 +845,21 @@ function fieldState() { const f = save.field; if (!f || f.day !== today()) save.
 function genField(reg) { const f = fieldState(), R = seeded(`${f.day}|${reg}|${f.refresh}`), hr = save.hr, out = [], pos = [[22, 24], [70, 20], [48, 46], [18, 66], [76, 62]];
   for (let i = 0; i < 5; i++) { const rr = R(), rar = rr > 0.93 ? 2 : rr > 0.7 ? 1 : 0, sp = REGIONS[reg].sp[Math.floor(R() * 4)];
     const lvl = Math.max(1, hr + [-1, 0, 0, 1, 1][i] + RARITY[rar].lv); const mons = [{ sp, lvl }]; if (rar === 2 && lvl >= 3) mons.push({ sp: REGIONS[reg].sp[(REGIONS[reg].sp.indexOf(sp) + 1) % 4], lvl: lvl - 1 });
-    out.push({ id: i, fid: `${reg}:${f.refresh}:${i}`, lvl, mons, rar, x: pos[i][0] + (R() * 8 - 4), y: pos[i][1] + (R() * 8 - 4) }); }
+    const mod = rar >= 1 ? MOD_KEYS[Math.floor(R() * MOD_KEYS.length)] : null;
+    out.push({ id: i, fid: `${reg}:${f.refresh}:${i}`, lvl, mons, rar, mod, x: pos[i][0] + (R() * 8 - 4), y: pos[i][1] + (R() * 8 - 4) }); }
   const gp = GATHER[reg].map((n, i) => ({ gid: `${reg}:${f.refresh}:g${i}`, n, x: [40, 86, 10][i], y: [80, 40, 40][i] }));
   return { mons: out.filter(n => !f.cleared.includes(n.fid)), gp: gp.filter(g => !f.gathered.includes(g.gid)) }; }
 let fieldSel = null;
+const ELICON = { fire: '🔥', ice: '❄', thunder: '⚡', water: '💧' };
+function advHint(n) { const m = n.mons[0], weak = S_[m.sp].weak; const adv = save.comps.filter(c => S_[c.species].elem === weak).map(c => c.name);
+  const rec = n.mod ? MODS[n.mod].rec : []; const recN = rec.map(sp => (save.comps.find(c => c.species === sp)?.name || S_[sp].short) + (owned(sp) ? '' : '(미보유)'));
+  return `<span class="note hint">${ELICON[weak]} 유리: ${adv.length ? adv.join(', ') : '없음'}${rec.length ? ` · 추천: ${recN.join(', ')}` : ''}</span>`; }
 function fieldBody(w, a) { const f = fieldState(), reg = f.region, F = genField(reg); save.nodes = F.mons;
   const regs = Object.entries(REGIONS).map(([k, r]) => `<button class="btn sm ${reg === k ? '' : 'alt'}" data-freg="${k}">${r.n}</button>`).join('');
-  const mk = F.mons.map((n, i) => { const m = n.mons[0], S = S_[m.sp]; return `<button class="fmon ${RARITY[n.rar].c} ${fieldSel === i ? 'sel' : ''}" data-fmon="${i}" style="left:${n.x}%;top:${n.y}%"><img src="${spImg(m.sp)}" alt=""><span>Lv${n.lvl}${n.rar ? ' ' + '★'.repeat(n.rar) : ''}</span></button>`; }).join('');
+  const mk = F.mons.map((n, i) => { const m = n.mons[0], S = S_[m.sp]; return `<button class="fmon ${RARITY[n.rar].c} ${fieldSel === i ? 'sel' : ''}" data-fmon="${i}" style="left:${n.x}%;top:${n.y}%"><img src="${spImg(m.sp)}" alt=""><span>Lv${n.lvl}${n.rar ? ' ' + '★'.repeat(n.rar) : ''}${n.mod ? MODS[n.mod].icon : ''}${save.comps.some(c => save.party.includes(c.id) && S_[c.species].elem === S_[m.sp].weak) ? ELICON[S_[m.sp].weak] : ''}</span></button>`; }).join('');
   const gp = F.gp.map(g => `<button class="fgath" data-fgath="${g.gid}" style="left:${g.x}%;top:${g.y}%">✦<span>${g.n}</span></button>`).join('');
   const sel = fieldSel != null && F.mons[fieldSel]; let info = `<div class="finfo note">몬스터를 탭하면 사냥 정보가 떠요. ✦ 채집 포인트는 탭하면 소재를 얻어요. 출현은 매일 바뀌어요(새로 찾기 ${MAX_REFRESH - f.refresh}회 남음).</div>`;
-  if (sel) { const n = sel; info = `<div class="finfo"><div><b>${n.mons.map(m => `<span class="${ELEM[S_[m.sp].elem].c}">${S_[m.sp].name}</span> Lv${m.lvl}`).join(' + ')}</b><br><span class="tag ${RARITY[n.rar].c}">${RARITY[n.rar].n}${n.rar ? ' · 소재 ×' + RARITY[n.rar].drop : ''}</span><span class="tag">약점 ${n.mons.map(m => ELEM[S_[m.sp].weak].n).join('/')}</span>${n.mons.map(m => owned(m.sp) ? '<span class="tag">동료 보유</span>' : m.lvl >= PURIFY_MIN_LVL ? '<span class="tag pur">정화 가능 Lv</span>' : '<span class="tag">Lv1 정화 불가</span>').join('')}</div><button class="btn" data-fgo="${fieldSel}">사냥 시작</button></div>`; }
+  if (sel) { const n = sel; info = `<div class="finfo"><div><b>${n.mons.map(m => `<span class="${ELEM[S_[m.sp].elem].c}">${S_[m.sp].name}</span> Lv${m.lvl}`).join(' + ')}</b><br><span class="tag ${RARITY[n.rar].c}">${RARITY[n.rar].n}${n.rar ? ' · 소재 ×' + RARITY[n.rar].drop : ''}</span><span class="tag">약점 ${n.mons.map(m => ELEM[S_[m.sp].weak].n).join('/')}</span>${n.mod ? `<span class="tag r2">${MODS[n.mod].icon} ${MODS[n.mod].n}: ${MODS[n.mod].d}</span>` : ''}${n.mons.map(m => owned(m.sp) ? '<span class="tag">동료 보유</span>' : m.lvl >= PURIFY_MIN_LVL ? '<span class="tag pur">정화 가능 Lv</span>' : '<span class="tag">Lv1 정화 불가</span>').join('')}</div>${advHint(n)}<button class="btn" data-fgo="${fieldSel}">사냥 시작</button></div>`; }
   return `<div class="note">HR <b>${save.hr}</b> · ${save.hrXp}/${save.hr * 100} · ${WEAPON_TYPES[w.type].n}(${ELEM[w.elem].n}) +${w.lvl} · 방어 ${armorDef(a)}</div><div class="tabs">${regs}</div>
     <div id="fieldMap" class="fmap ${REGIONS[reg].bg}">${gp}${mk}<div class="fme">🧭</div></div>${info}
     <div class="row"><button class="btn alt sm ${f.refresh >= MAX_REFRESH ? 'dis' : ''}" data-act="reroll">새로 찾기</button><span class="note">조작: 드래그=이동 · 탭=공격 · 휙=회피 · 길게=${holdName(w.type)}</span></div>`; }
@@ -861,21 +901,23 @@ function village() {
       Object.keys(S_).filter(sp => !save.armors.some(x => x.sp === sp)).map(sp => `<div class="card"><div class="t"><b>${S_[sp].short}의 갑옷 제작</b><br><span class="note">가죽 4점 + 부위 소재 2점</span></div><button class="btn sm ${matPoints(sp, 'hide') >= 4 && partPoints(sp) >= 2 ? '' : 'dis'}" data-crafta="${sp}">제작</button></div>`).join('') +
       `<h2>소재함</h2><div class="note">${Object.entries(save.mats).filter(([, n]) => n > 0).map(([k, n]) => `${matName(k)} ×${n}`).join('<br>') || '아직 소재가 없어요. 사냥을 떠나 보세요!'}</div><p class="note">품질 점수: 하급 1 · 중급 2 · 상급 3 (Lv3+ 몬스터는 중급, Lv5+는 상급 소재)</p>`;
   } else if (tab === 'party') {
-    body = `<p class="note">사냥에 최대 3명 동행. 정화한 몬스터 소녀가 동료가 됩니다. 내가 만든 장비를 동료에게도 장착할 수 있어요(공유).</p>` + `<p class="note">동료 수집 <b>${save.comps.length}/${Object.keys(S_).length}종</b> · 같은 종은 한 명만 영입할 수 있어요.</p>` + (save.comps.length ? save.comps.map(c => { const st = compStats(c), inP = save.party.includes(c.id), w = weaponById(c.weapon), S = S_[c.species];
-      return `<div class="card"><img src="${spImg(c.species)}" style="filter:hue-rotate(${c.hueDeg}deg)" alt=""><div class="t"><b>${c.name}</b> <span class="tag">${ROLES[c.role]}</span><span class="tag">${S.short} 계열</span><br>Lv${c.level} · 잠재력 ${'★'.repeat(c.potential)} · HP ${st.hp} 공격 ${st.atk}<br><span class="note">특성: ${S.trait.n}(${S.trait.d}) · ${ROLE_DESC[c.role]} · 장식: ${ACCS[c.acc].n}<br>무기: ${w ? WEAPON_TYPES[w.type].n + ' ' + ELEM[w.elem].n + ' +' + w.lvl : '없음'}</span></div>
-      <div class="row" style="flex-direction:column"><button class="btn sm ${inP ? '' : 'alt'}" data-party="${c.id}">${inP ? '편성 해제' : '편성'}</button><button class="btn sm alt" data-cw="${c.id}">무기 변경</button><button class="btn sm" data-cgear="${c.id}">장비</button><button class="btn sm alt" data-story="${c.id}">스토리</button></div></div>`; }).join('') : '<p>아직 동료가 없어요. 결과 화면에서 정화 점수가 기준을 넘으면 몬스터 소녀를 정화해 동료로 맞이할 수 있어요.</p>');
+    const pc = save.party.map(id => save.comps.find(x => x.id === id)).filter(Boolean), TS = teamFx(pc, w.type), RS = rosterFx(save.comps);
+    body = `<div class="synbox"><b>편성 ${pc.length}/3</b> · 시너지: ${TS.named.length ? TS.named.map(n => `<span class="tag pur">${n}</span>`).join('') : '<span class="note">없음 — 서로 다른 역할·조합·무기 궁합을 노려 보세요</span>'}<br><span class="note">육성 보너스(Lv5+ ${RS.k}명): ${ROSTER.map(r => `<span class="${RS.k >= r.n ? 'up' : ''}">${r.n}명 ${r.d}</span>`).join(' · ')}</span></div>` +
+      (save.comps.length ? `<div class="clist">` + save.comps.map(c => { const inP = save.party.includes(c.id), S = S_[c.species], N = NICHE[c.species], xm = xpMul(c, save.comps);
+      return `<div class="crow ${inP ? 'in' : ''}"><img src="${spImg(c.species)}" style="filter:hue-rotate(${c.hueDeg}deg)" alt=""><div class="t"><b>${c.name}</b> <span class="tag">${ROLES[c.role]}</span><span class="tag ${ELEM[S.elem].c}">${ELICON[S.elem]}${S.short}</span> Lv${c.level}/${10 + c.potential * 4}${xm !== 1 ? ` <span class="note">경험치×${xm}</span>` : ''}<br><span class="note">${N.icon} <b>${N.n}</b>: ${N.d} · <span class="down">약점: ${N.weak}</span></span>${mentorLine(c)}</div>
+      <div class="cbtn"><button class="btn sm ${inP ? '' : 'alt'}" data-party="${c.id}">${inP ? '해제' : '편성'}</button><button class="btn sm alt" data-cgear="${c.id}">장비</button><button class="btn sm alt" data-story="${c.id}">이야기</button><button class="btn sm alt" data-train="${c.id}">훈련</button></div></div>`; }).join('') + `</div>` : '<p>아직 동료가 없어요. 정화 점수 70 이상 + Lv2 이상 + 부위 파괴 1곳 이상이면 정화해 동료로 맞이할 수 있어요.</p>');
   } else if (tab === 'codex') {
     body = Object.entries(S_).map(([k, S]) => { const c = save.codex[k]; return `<div class="card"><img src="${spImg(k)}" alt=""><div class="t"><b class="${ELEM[S.elem].c}">${S.name}</b> ${owned(k) ? '<span class="tag pur">동료</span>' : ''}<br>${c ? `조우 ${c.seen} · 토벌 ${c.won} · 최고 Lv${c.maxLvl}<br><span class="note">약점 ${ELEM[S.weak].n} · 부위: ${S.parts.map(p => p.n).join(', ')} · 역할 후보: ${S.roles.map(r => ROLES[r]).join('/')}</span>` : '<span class="note">미조우</span>'}</div></div>`; }).join('') +
       `<p class="note">사냥 ${save.stats.hunts} · 성공 ${save.stats.wins} · 실패 ${save.stats.fails} · 정화 ${save.stats.purified}</p>`;
   } else {
     const t = (k, n) => `<button class="btn sm ${save.settings[k] ? '' : 'alt'}" data-tog="${k}">${n}: ${save.settings[k] ? '켬' : '끔'}</button>`;
-    body = `<h2>효과</h2><div class="row">${t('sound', '효과음')}${t('vib', '진동')}${t('shake', '화면 흔들림')}</div><h2>화질</h2><div class="row">${[['auto', '자동'], ['high', '높음'], ['mid', '중간'], ['low', '낮음']].map(([k, n]) => `<button class="btn sm ${save.settings.quality === k ? '' : 'alt'}" data-q="${k}">${n}</button>`).join('')}</div><p class="note">자동: 사냥 중 프레임이 떨어지면 해상도·그림자·풀숲을 단계적으로 줄여요. 지금 단계: ${['낮음', '중간', '높음'][qLevel]}</p><h2>조작</h2><div class="row">${t('dodgeBtn', '회피 버튼 표시')}${t('hint', '조작 안내')}${t('dlg', '동료 대사')}</div><p class="note">회피는 기본적으로 화면을 휙 밀어서 해요. 버튼이 편하면 회피 버튼을 켜세요(왼쪽 아래).</p>
+    body = `<h2>효과</h2><div class="row">${t('sound', '효과음')}${t('vib', '진동')}${t('shake', '화면 흔들림')}</div><h2>화질</h2><div class="row">${[['auto', '자동'], ['high', '높음'], ['mid', '중간'], ['low', '낮음']].map(([k, n]) => `<button class="btn sm ${save.settings.quality === k ? '' : 'alt'}" data-q="${k}">${n}</button>`).join('')}</div><p class="note">자동: 사냥 중 프레임이 떨어지면 해상도·그림자·풀숲을 단계적으로 줄여요. 지금 단계: ${['낮음', '중간', '높음'][qLevel]}</p><h2>조작</h2><div class="row">${t('dodgeBtn', '회피 버튼 표시')}${t('hint', '조작 안내')}${t('dlg', '동료 대사')}${t('tips', '스승 시범 알림')}</div><p class="note">회피는 기본적으로 화면을 휙 밀어서 해요. 버튼이 편하면 회피 버튼을 켜세요(왼쪽 아래).</p>
       <h2>이야기</h2><div class="row"><button class="btn sm alt" data-act="replayOp">오프닝 다시 보기</button><button class="btn sm alt" data-act="lore">세계관</button></div><p class="note">주인공: ${heroOf().name} — ${heroOf().motive}</p><h2>저장</h2><p class="note"><b>이 기기에만 저장 · 클라우드 동기화 없음.</b> 플레이 중 자동 저장돼요. 다른 기기로 옮기려면 백업 파일을 내보낸 뒤 그 기기에서 가져오세요.<br>저장 형식 v${save.v} · ${saveStatus}</p>
       <div class="row"><button class="btn sm" data-act="export">백업 내보내기</button><button class="btn sm alt" data-act="import">백업 가져오기</button><button class="btn sm alt" data-act="reset">기록 초기화</button></div><input type="file" id="impFile" accept="application/json,.json" class="hidden">
       <p class="note">설치: 브라우저 메뉴의 "홈 화면에 추가"로 앱처럼 실행할 수 있어요 (오프라인 지원).</p>`;
   }
   const notice = save.notice ? `<div class="card notice"><div class="t"><b>알림</b><br>${save.notice}</div><button class="btn sm" data-act="ack">확인</button></div>` : '';
-  ui(`<img class="hero" src="img/gallery_g_party.webp" alt="" style="max-height:110px"><h1>헌트 나우 <span class="note">정화의 사냥꾼</span></h1>${notice}<div class="tabs">${tabs}</div>${body}`, 'village');
+  ui(`<img class="hero" src="img/gallery_g_party.webp" alt="" style="max-height:110px"><h1>헌트 나우 <span class="note">정화의 사냥꾼</span></h1>${notice}<div class="tabs">${tabs}</div>${body}`, tab === 'party' ? 'village full' : 'village');
 }
 let gearComp = null, gearSlot = 'body';
 function gearScreen() {
@@ -894,7 +936,7 @@ function gearScreen() {
       <span class="col"><button class="btn sm ${eq ? 'alt' : ''}" data-gequip="${g.id}">${eq ? '해제' : '장착'}</button><button class="btn sm alt ${canUp ? '' : 'dis'}" data-gup="${g.id}">강화</button></span></div>`; }).join('') || '<p class="note">아직 토벌한 몬스터가 없어 만들 수 있는 방어구가 없어요.</p>';
   ui(`<div class="gearhd"><img src="${spImg(c.species)}" style="filter:hue-rotate(${c.hueDeg}deg)" alt=""><div><b>${c.name}</b> <span class="tag">${S.short} 계열</span><br>HP <b>${cur.hp}</b> · 공격 <b>${cur.atk}</b> · 방어 <b>${Math.round(cur.def)}</b><br><span class="note">${S.short} 세트 ${sc}/3 · 2부위 공격 +10%${sc >= 2 ? '✔' : ''} · 3부위 HP +15%·${SETB[c.species]}${sc >= 3 ? '✔' : ''}</span></div></div>
     <div class="gslots">${slots}</div><div class="glist">${opts}</div>
-    <div class="row"><button class="btn sm alt" data-act="gback">← 동료</button></div>`, 'village gear');
+    <div class="row"><button class="btn sm alt" data-act="gback">← 동료</button><button class="btn sm alt" data-cw="${c.id}">공유 무기: ${weaponById(c.weapon) ? WEAPON_TYPES[weaponById(c.weapon).type].n : '없음'}</button></div>`, 'village gear');
 }
 let storyComp = null, storyChap = null;
 // 이름 뒤 조사를 받침에 맞춤: {n}은/는, 이/가, 을/를, 과/와
@@ -944,6 +986,7 @@ uiEl.addEventListener('click', (e) => {
   if (d.act === 'lore') { loreScreen(); return; }
   if (d.story) { storyComp = d.story; storyChap = null; storyScreen(); return; }
   if (d.chap !== undefined) { storyChap = +d.chap; storyScreen(); return; }
+  if (d.train) { const c = save.comps.find(x => x.id === d.train); clearIdle(); startTraining(c); return; }
   if (d.cgear) { gearComp = d.cgear; gearScreen(); return; }
   if (d.gslot) { gearSlot = d.gslot; gearScreen(); return; }
   if (d.act === 'gback') { tab = 'party'; village(); return; }
@@ -961,7 +1004,7 @@ uiEl.addEventListener('click', (e) => {
   if (d.craft) { const [t, el] = d.craft.split(':'), sp = ELEM_SRC[el]; spendPoints(sp, 'hide', 3); spendPartPoints(sp, 1); const id = newId('w'); save.weapons.push({ id, type: t, elem: el, lvl: 1 }); sfx('win'); }
   if (d.crafta) { const sp = d.crafta; spendPoints(sp, 'hide', 4); spendPartPoints(sp, 2); save.armors.push({ id: newId('a'), sp, lvl: 1 }); sfx('win'); }
   if (d.party) { const i = save.party.indexOf(d.party); if (i >= 0) save.party.splice(i, 1); else if (save.party.length < 3) save.party.push(d.party); else alert('동료는 최대 3명까지 편성할 수 있어요.'); }
-  if (d.cw) { const c = save.comps.find(x => x.id === d.cw); const opts = [null, ...save.weapons.map(w => w.id)]; c.weapon = opts[(opts.indexOf(c.weapon) + 1) % opts.length]; }
+  if (d.cw) { const c = save.comps.find(x => x.id === d.cw); const opts = [null, ...save.weapons.map(w => w.id)]; c.weapon = opts[(opts.indexOf(c.weapon) + 1) % opts.length]; persist(); gearComp = c.id; gearScreen(); return; }
   if (d.tog) { save.settings[d.tog] = !save.settings[d.tog]; }
   if (d.q) { save.settings.quality = d.q; qRaised = false; delete save.qAuto; applyQuality(qualityFromSetting()); }
   if (d.act === 'reroll') { const f = fieldState(); if (f.refresh < MAX_REFRESH) { f.refresh++; fieldSel = null; } }
@@ -986,5 +1029,5 @@ uiEl.addEventListener('change', async (e) => {
 });
 addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
-window.HN = { skipIntro: () => { save.opened = true; save.hero = save.hero || 'aria'; save.beats = BEATS.map(b => b.hr); persist(); village(); }, startHuntForTest: (i = 0) => { village(); clearIdle(); startHunt(save.nodes[i]); }, startHuntNode: (n) => { clearIdle(); startHunt(n); }, damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
+window.HN = { noteMoveForTest: (k) => noteMove(k), startTraining: (id) => startTraining(save.comps.find(c => c.id === id)), skipIntro: () => { save.opened = true; save.hero = save.hero || 'aria'; save.beats = BEATS.map(b => b.hr); persist(); village(); }, startHuntForTest: (i = 0) => { village(); clearIdle(); startHunt(save.nodes[i]); }, startHuntNode: (n) => { clearIdle(); startHunt(n); }, damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
 village();
