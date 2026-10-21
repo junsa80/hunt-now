@@ -110,3 +110,13 @@ h1{margin:4px 0 8px;font-size:24px}h2{font-size:18px;margin:14px 0 6px}
 #mPanel{max-width:none}
 .rb.mid{width:78px;height:78px;background:radial-gradient(circle at 40% 35%,#9ad4ff,#2a6ad8 70%);border:3px solid #fff;box-shadow:0 3px 10px #0008;font-size:16px}
 .rb.mid:active,.rb.sp:active{transform:scale(.92)}
+
+/* ── v5 동료 방어구 화면(한 화면, 스크롤 없음 목표) ── */
+#ui.gear{top:0!important;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.gearhd{display:flex;gap:10px;align-items:center;font-size:14px;line-height:1.4}.gearhd img{width:64px;height:84px;object-fit:cover;object-position:top;border-radius:10px}
+.gslots{display:flex;gap:6px}.gslot{flex:1;background:#ffffff14;border:2px solid #fff3;border-radius:12px;color:#fff;padding:6px 4px;font-size:12px;display:flex;flex-direction:column;gap:2px;min-height:58px}
+.gslot.on{border-color:#ffe066;background:#ffe06626}.gslot b{font-size:12px}
+.glist{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:5px}
+.grow{display:flex;justify-content:space-between;align-items:center;gap:6px;background:#ffffff10;border:1px solid #fff2;border-radius:12px;padding:7px 9px;font-size:13px;line-height:1.35}
+.grow.eq{border-color:#7fffb0}.grow .col{display:flex;flex-direction:column;gap:4px}
+.up{color:#7fffb0}.down{color:#ff8a8a}

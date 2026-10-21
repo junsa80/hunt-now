@@ -5,13 +5,13 @@ import { ELEM, STATUS, SPECIES, ROLES, ROLE_DESC, WEAPON_TYPES, WEAPON_ORDER, EL
 
 const $ = (id) => document.getElementById(id);
 const rnd = (a, b) => a + Math.random() * (b - a), clamp = (x, a, b) => Math.max(a, Math.min(b, x));
-const SAVE_KEY = 'huntnow.save', SAVE_V = 3;
+const SAVE_KEY = 'huntnow.save', SAVE_V = 4;
 
 // ───────── 저장 ─────────
 function freshSave() {
   return { v: SAVE_V, savedAt: Date.now(), hr: 1, hrXp: 0, mats: {}, weapons: WEAPON_ORDER.map((t, i) => ({ id: 'w' + (i + 1), type: t, elem: 'none', lvl: 1 })),
     armors: [{ id: 'a1', sp: 'none', lvl: 1 }], equip: { weapon: 'w1', armor: 'a1' }, comps: [], party: [], settings: { sound: true, vib: true, shake: true, dodgeBtn: true, hint: true, quality: 'auto' },
-    stats: { hunts: 0, wins: 0, purified: 0, fails: 0 }, codex: {}, nodes: null, nextId: 20 };
+    stats: { hunts: 0, wins: 0, purified: 0, fails: 0 }, codex: {}, nodes: null, nextId: 20, cgear: [], bond: {}, story: {}, field: null };
 }
 function migrate(s) {
   if (!s || typeof s !== 'object') return freshSave();
@@ -30,6 +30,9 @@ function migrate(s) {
     s.comps = s.comps.filter(c => keep.has(c.id)); s.party = s.party.filter(id => keep.has(id));
     s.settings = Object.assign({ dodgeBtn: false, hint: true }, s.settings); s.nodes = null; s.v = 3; if (notes.length) s.notice = notes.join(' ');
   }
+  if (s.v < 4) { // v5(저장 v4): 동료 방어구·인연·스토리·필드. 기존 기록은 그대로 두고 빈 칸만 추가
+    s.cgear = s.cgear || []; s.bond = s.bond || {}; s.story = s.story || {}; s.field = null; (s.comps || []).forEach(c => { c.gear = c.gear || {}; }); s.v = 4;
+    s.notice = (s.notice ? s.notice + ' ' : '') + 'v5 업데이트: 동료 방어구(동료 → 장비), 필드 지도, 동료 개인 스토리가 추가됐어요. 기존 기록은 그대로예요.'; }
   if (!s.settings.quality) s.settings.quality = 'auto'; // v4: 화질 설정 (저장 버전 유지, 기본값만 추가)
   return s;
 }
@@ -232,9 +235,21 @@ function makeEntity(model, o) {
   scene.add(model);
   return Object.assign({ model, pos: model.position, face: 0, vel: new THREE.Vector3(), state: 'idle', st: 0, run: 0, hitFlash: 0, status: {}, build: { fire: 0, ice: 0, thunder: 0 } }, o);
 }
-function compStats(c) {
-  const w = weaponById(c.weapon), a = armorById(c.armor), pm = 1 + 0.1 * (c.potential - 1);
-  return { hp: Math.round((70 + c.level * 7) * pm + armorDef(a) * 1.5), atk: Math.round((4 + c.level * 1.1) * pm + weaponAtk(w) * 0.45), def: armorDef(a) * 0.6, elem: w?.elem && w.elem !== 'none' ? w.elem : SPECIES[c.species].elem, wtype: w?.type || 'sns' };
+// ── v5 동료 방어구: 동료마다 머리·몸통·팔 3칸. 몬스터 가죽 + 부위 파괴 소재로 제작·강화(+1~+5). 동료와 같은 종 세트 2/3부위 보너스
+const GSLOTS = { head: { n: '머리', icon: '⛑' }, body: { n: '몸통', icon: '🛡' }, arms: { n: '팔', icon: '🧤' } };
+const GPIECE = { wolf: ['불꽃 갈기 투구', '루가 가죽 흉갑', '발톱 건틀릿'], witch: ['서리 관', '빙결 로브', '얼음 손목띠'], drake: ['뇌룡 투구', '용린 갑주', '뇌광 완갑'], siren: ['산호 머리띠', '물결 비늘 조끼', '조개 팔찌'], kitsune: ['여우 방울 머리꽂이', '무녀 하오리', '여우불 팔보호대'], harpy: ['깃털 관', '바람 깃 조끼', '폭풍 깃 장갑'] };
+const SETB = { wolf: '공격 +8%', witch: '방어 +8', drake: '방어 +12', siren: 'HP +10%', kitsune: '공격 +8%', harpy: '공격·HP +5%' };
+const SETX = { wolf: { atk: 1.08 }, witch: { def: 8 }, drake: { def: 12 }, siren: { hp: 1.1 }, kitsune: { atk: 1.08 }, harpy: { atk: 1.05, hp: 1.05 } };
+const gearById = (id) => save.cgear.find(g => g.id === id);
+const gearName = (g) => `${GPIECE[g.sp][Object.keys(GSLOTS).indexOf(g.slot)]} +${g.lvl}`;
+const gearStat = (g) => g ? { hp: 12 + g.lvl * 8, def: 3 + g.lvl * 2, atk: g.slot === 'arms' ? 1 + g.lvl : g.slot === 'head' ? Math.floor(g.lvl / 2) : 0 } : { hp: 0, def: 0, atk: 0 };
+const gearCost = (lvl) => ({ hide: 2 + lvl, part: lvl }); // lvl=0이면 제작 (가죽 2 + 부위 0 → 제작은 아래에서 부위 1 이상)
+function setCount(c, gearMap = c.gear || {}) { return Object.values(gearMap).map(gearById).filter(g => g && g.sp === c.species).length; }
+function compStats(c, gearMap) {
+  const w = weaponById(c.weapon), a = armorById(c.armor), pm = 1 + 0.1 * (c.potential - 1); gearMap = gearMap || c.gear || {};
+  const gs = Object.values(gearMap).map(gearById).reduce((t, g) => { const x = gearStat(g); t.hp += x.hp; t.def += x.def; t.atk += x.atk; return t; }, { hp: 0, def: 0, atk: 0 });
+  const sc = setCount(c, gearMap), X = sc >= 3 ? SETX[c.species] : {}, sAtk = (sc >= 2 ? 1.1 : 1) * (X.atk || 1), sHp = (sc >= 3 ? 1.15 : 1) * (X.hp || 1);
+  return { hp: Math.round(((70 + c.level * 7) * pm + armorDef(a) * 1.5 + gs.hp) * sHp), atk: Math.round(((4 + c.level * 1.1) * pm + weaponAtk(w) * 0.45 + gs.atk) * sAtk), def: armorDef(a) * 0.6 + gs.def + (X.def || 0), set: sc, elem: w?.elem && w.elem !== 'none' ? w.elem : SPECIES[c.species].elem, wtype: w?.type || 'sns' };
 }
 function startHunt(node) {
   ui(''); $('hud').classList.remove('hidden');
@@ -804,7 +819,7 @@ function village() {
   } else if (tab === 'party') {
     body = `<p class="note">사냥에 최대 3명 동행. 정화한 몬스터 소녀가 동료가 됩니다. 내가 만든 장비를 동료에게도 장착할 수 있어요(공유).</p>` + `<p class="note">동료 수집 <b>${save.comps.length}/${Object.keys(S_).length}종</b> · 같은 종은 한 명만 영입할 수 있어요.</p>` + (save.comps.length ? save.comps.map(c => { const st = compStats(c), inP = save.party.includes(c.id), w = weaponById(c.weapon), S = S_[c.species];
       return `<div class="card"><img src="${spImg(c.species)}" style="filter:hue-rotate(${c.hueDeg}deg)" alt=""><div class="t"><b>${c.name}</b> <span class="tag">${ROLES[c.role]}</span><span class="tag">${S.short} 계열</span><br>Lv${c.level} · 잠재력 ${'★'.repeat(c.potential)} · HP ${st.hp} 공격 ${st.atk}<br><span class="note">특성: ${S.trait.n}(${S.trait.d}) · ${ROLE_DESC[c.role]} · 장식: ${ACCS[c.acc].n}<br>무기: ${w ? WEAPON_TYPES[w.type].n + ' ' + ELEM[w.elem].n + ' +' + w.lvl : '없음'}</span></div>
-      <div class="row" style="flex-direction:column"><button class="btn sm ${inP ? '' : 'alt'}" data-party="${c.id}">${inP ? '편성 해제' : '편성'}</button><button class="btn sm alt" data-cw="${c.id}">무기 변경</button></div></div>`; }).join('') : '<p>아직 동료가 없어요. 결과 화면에서 정화 점수가 기준을 넘으면 몬스터 소녀를 정화해 동료로 맞이할 수 있어요.</p>');
+      <div class="row" style="flex-direction:column"><button class="btn sm ${inP ? '' : 'alt'}" data-party="${c.id}">${inP ? '편성 해제' : '편성'}</button><button class="btn sm alt" data-cw="${c.id}">무기 변경</button><button class="btn sm" data-cgear="${c.id}">장비</button></div></div>`; }).join('') : '<p>아직 동료가 없어요. 결과 화면에서 정화 점수가 기준을 넘으면 몬스터 소녀를 정화해 동료로 맞이할 수 있어요.</p>');
   } else if (tab === 'codex') {
     body = Object.entries(S_).map(([k, S]) => { const c = save.codex[k]; return `<div class="card"><img src="${spImg(k)}" alt=""><div class="t"><b class="${ELEM[S.elem].c}">${S.name}</b> ${owned(k) ? '<span class="tag pur">동료</span>' : ''}<br>${c ? `조우 ${c.seen} · 토벌 ${c.won} · 최고 Lv${c.maxLvl}<br><span class="note">약점 ${ELEM[S.weak].n} · 부위: ${S.parts.map(p => p.n).join(', ')} · 역할 후보: ${S.roles.map(r => ROLES[r]).join('/')}</span>` : '<span class="note">미조우</span>'}</div></div>`; }).join('') +
       `<p class="note">사냥 ${save.stats.hunts} · 성공 ${save.stats.wins} · 실패 ${save.stats.fails} · 정화 ${save.stats.purified}</p>`;
@@ -817,6 +832,25 @@ function village() {
   }
   const notice = save.notice ? `<div class="card notice"><div class="t"><b>알림</b><br>${save.notice}</div><button class="btn sm" data-act="ack">확인</button></div>` : '';
   ui(`<img class="hero" src="img/gallery_g_party.webp" alt="" style="max-height:110px"><h1>헌트 나우 <span class="note">정화의 사냥꾼</span></h1>${notice}<div class="tabs">${tabs}</div>${body}`, 'village');
+}
+let gearComp = null, gearSlot = 'body';
+function gearScreen() {
+  const c = save.comps.find(x => x.id === gearComp); if (!c) { tab = 'party'; village(); return; } c.gear = c.gear || {};
+  const cur = compStats(c), S = S_[c.species], sc = setCount(c);
+  const slots = Object.entries(GSLOTS).map(([k, o]) => { const g = gearById(c.gear[k]); return `<button class="gslot ${gearSlot === k ? 'on' : ''}" data-gslot="${k}"><span>${o.icon} ${o.n}</span><b>${g ? gearName(g) : '비어 있음'}</b></button>`; }).join('');
+  const diff = (a, b) => b === a ? `${a}` : `${a} → <b class="${b > a ? 'up' : 'down'}">${b}</b>`;
+  const opts = Object.keys(S_).map(sp => { const g = save.cgear.find(x => x.sp === sp && x.slot === gearSlot); const eq = g && c.gear[gearSlot] === g.id;
+    const usedBy = g && save.comps.find(o => o.id !== c.id && o.gear && o.gear[gearSlot] === g.id);
+    const nm = GPIECE[sp][Object.keys(GSLOTS).indexOf(gearSlot)];
+    if (!g) { const can = matPoints(sp, 'hide') >= 3 && partPoints(sp) >= 1; const known = save.codex[sp]?.won;
+      return known ? `<div class="grow"><span><b>${nm}</b><br><span class="note">${S_[sp].short} 가죽 3 + 부위 1</span></span><button class="btn sm ${can ? '' : 'dis'}" data-gcraft="${sp}">제작</button></div>` : ''; }
+    const tryMap = Object.assign({}, c.gear, { [gearSlot]: g.id }), nx = compStats(c, tryMap), cost = gearCost(g.lvl);
+    const canUp = g.lvl < 5 && matPoints(sp, 'hide') >= cost.hide && partPoints(sp) >= cost.part; const up = gearStat({ ...g, lvl: g.lvl + 1 }), now = gearStat(g);
+    return `<div class="grow ${eq ? 'eq' : ''}"><span><b>${gearName(g)}</b>${sp === c.species ? ' <span class="tag pur">세트</span>' : ''}${usedBy ? ` <span class="tag">${usedBy.name} 착용</span>` : ''}<br><span class="note">${eq ? '장착 중' : `HP ${diff(cur.hp, nx.hp)} · 공격 ${diff(cur.atk, nx.atk)} · 방어 ${diff(Math.round(cur.def), Math.round(nx.def))}`}${g.lvl < 5 ? `<br>강화 +${g.lvl + 1}: HP +${up.hp - now.hp} 방어 +${up.def - now.def} (가죽 ${cost.hide}·부위 ${cost.part})` : '<br>최대 강화'}</span></span>
+      <span class="col"><button class="btn sm ${eq ? 'alt' : ''}" data-gequip="${g.id}">${eq ? '해제' : '장착'}</button><button class="btn sm alt ${canUp ? '' : 'dis'}" data-gup="${g.id}">강화</button></span></div>`; }).join('') || '<p class="note">아직 토벌한 몬스터가 없어 만들 수 있는 방어구가 없어요.</p>';
+  ui(`<div class="gearhd"><img src="${spImg(c.species)}" style="filter:hue-rotate(${c.hueDeg}deg)" alt=""><div><b>${c.name}</b> <span class="tag">${S.short} 계열</span><br>HP <b>${cur.hp}</b> · 공격 <b>${cur.atk}</b> · 방어 <b>${Math.round(cur.def)}</b><br><span class="note">${S.short} 세트 ${sc}/3 · 2부위 공격 +10%${sc >= 2 ? '✔' : ''} · 3부위 HP +15%·${SETB[c.species]}${sc >= 3 ? '✔' : ''}</span></div></div>
+    <div class="gslots">${slots}</div><div class="glist">${opts}</div>
+    <div class="row"><button class="btn sm alt" data-act="gback">← 동료</button></div>`, 'village gear');
 }
 function showResult() {
   const r = lastResult, sc = r.sc, m0 = r.mons[0], S = S_[m0.sp]; S.img2 = spImg(m0.sp);
@@ -847,6 +881,14 @@ uiEl.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
   if (b.classList.contains('dis')) return;
   if (d.tab) { tab = d.tab; village(); return; }
+  if (d.cgear) { gearComp = d.cgear; gearScreen(); return; }
+  if (d.gslot) { gearSlot = d.gslot; gearScreen(); return; }
+  if (d.act === 'gback') { tab = 'party'; village(); return; }
+  if (d.gcraft || d.gequip || d.gup) { const c = save.comps.find(x => x.id === gearComp); c.gear = c.gear || {};
+    if (d.gcraft) { const sp = d.gcraft; spendPoints(sp, 'hide', 3); spendPartPoints(sp, 1); const g = { id: newId('g'), sp, slot: gearSlot, lvl: 1 }; save.cgear.push(g); c.gear[gearSlot] = g.id; sfx('win'); }
+    if (d.gequip) { if (c.gear[gearSlot] === d.gequip) delete c.gear[gearSlot]; else { save.comps.forEach(o => { if (o.gear && o.gear[gearSlot] === d.gequip) delete o.gear[gearSlot]; }); c.gear[gearSlot] = d.gequip; } }
+    if (d.gup) { const g = gearById(d.gup), cost = gearCost(g.lvl); spendPoints(g.sp, 'hide', cost.hide); spendPartPoints(g.sp, cost.part); g.lvl++; sfx('brk'); }
+    persist(); gearScreen(); return; }
   if (d.hunt !== undefined) { clearIdle(); startHunt(save.nodes[+d.hunt]); return; }
   if (d.pur) { const [i, ro] = d.pur.split(':'); purify(+i, ro); return; }
   if (d.eqw) { save.equip.weapon = d.eqw; }
