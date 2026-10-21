@@ -20,7 +20,7 @@ const results = []; const ok = (n, p, i = '') => { results.push(p); console.log(
     await ev(page, (fz) => { const m = HN.G.monsters[0]; if (fz) { m.atkCd = 99; m.ai = 'move'; } HN.G.player.pos.set(m.pos.x, 0, m.pos.z + 3); HN.G.time = 999; }, freeze); await sleep(300);
   }
   for (const [W, H, tag] of [[390, 844, 'port'], [844, 390, 'land']]) {
-    const page = await newPage(W, H); await page.goto(URL); await ev(page, () => localStorage.clear()); await page.reload(); await sleep(1500);
+    const page = await newPage(W, H); await page.goto(URL); await ev(page, () => localStorage.clear()); await page.reload(); await sleep(1500); await page.evaluate(() => HN.skipIntro());
     ok(`${tag}: 화질 설정 기본값 auto`, await ev(page, () => HN.save.settings.quality === 'auto'));
     // 조우 포효 → 가까운 헌터는 귀를 막음(cover)
     await hunt(page, 'gs', 0, false);

@@ -26,7 +26,7 @@ const results = []; const ok = (name, pass, info = '') => { results.push({ name,
 
   // ── 세로 390x844 ──
   let page = await newPage(390, 844);
-  await page.goto(URL); await ev(page, () => localStorage.clear()); await page.reload(); await sleep(1500);
+  await page.goto(URL); await ev(page, () => localStorage.clear()); await page.reload(); await sleep(1500); await page.evaluate(() => HN.skipIntro());
   ok('새 저장 v4 + 무기 7종', await ev(page, () => HN.save.v === 4 && HN.save.weapons.length === 7));
   await page.screenshot({ path: OUT + '/port-01-village.png' });
   await page.click('[data-tab="forge"]'); await sleep(200); await page.click('[data-ftype="bow"]'); await sleep(200); await page.screenshot({ path: OUT + '/port-02-forge-bow.png', fullPage: false });

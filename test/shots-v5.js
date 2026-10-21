@@ -7,7 +7,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const page = await browser.newPage(); const errors = [];
   await page.emulate({ viewport: { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, userAgent: 'Mozilla/5.0 (Linux; Android 14) Mobile' });
   page.on('pageerror', e => errors.push(e.message));
-  await page.goto(URL); await page.evaluate(() => localStorage.clear()); await page.reload(); await sleep(1500);
+  await page.goto(URL); await page.evaluate(() => localStorage.clear()); await page.reload(); await sleep(1500); await page.evaluate(() => HN.skipIntro());
   await page.screenshot({ path: `${OUT}/${TAG}-01-village.png` });
   await page.evaluate(() => { const s = HN.save; HN.village(); });
   await page.evaluate(() => HN.startHuntForTest ? HN.startHuntForTest() : document.querySelector('[data-hunt="0"]').click()); await sleep(1500);

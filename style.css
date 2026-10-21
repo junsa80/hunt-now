@@ -143,3 +143,10 @@ h1{margin:4px 0 8px;font-size:24px}h2{font-size:18px;margin:14px 0 6px}
 .schap{flex-direction:column}.schap .btn{text-align:left}
 .storytext{flex:1;min-height:0;overflow:auto;background:#ffffff0e;border-radius:12px;padding:8px 12px;font-size:14px;line-height:1.6}
 .storytext h2{margin:2px 0 6px;font-size:16px}.storytext p{margin:0 0 6px}
+
+/* ── v5 오프닝·주인공·메인 스토리 ── */
+#ui.op-wrap{display:flex;align-items:center;justify-content:center}
+.op{max-width:420px;text-align:center;display:flex;flex-direction:column;gap:14px}.op h1{font-size:24px;margin:0}.op p{font-size:16px;line-height:1.7;opacity:.9;margin:0}.op .row{justify-content:center}
+.opdots{display:flex;gap:6px;justify-content:center}.opdots i{width:8px;height:8px;border-radius:50%;background:#fff4}.opdots i.on{background:#ffe066}
+.herolist{display:flex;flex-direction:column;gap:8px}.hero-c{display:flex;gap:10px;align-items:center;text-align:left;background:#ffffff12;border:2px solid #fff3;border-radius:14px;color:#fff;padding:10px;font-size:14px;line-height:1.4}
+.hero-c.on{border-color:#ffe066;background:#ffe06622}.hdot{flex:none;width:46px;height:46px;border-radius:50%;border:5px solid}

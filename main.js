@@ -1,6 +1,7 @@
 import * as THREE from './vendor/three.module.js';
 import { buildGirl, animate, setWeapon, toon, ownOutline, ATK_STYLE } from './chars.js';
 import { createFx, buildEnv, RIM } from './fx.js';
+import { LORE, OPENING, HEROES, BEATS, PURIFY_SCENE, PURIFY_FAIL } from './lore.js';
 import { STORIES, STORY_UNLOCK, BARKS } from './story.js';
 import { ELEM, STATUS, SPECIES, ROLES, ROLE_DESC, WEAPON_TYPES, WEAPON_ORDER, ELEM_SRC, QUAL, qualOf, NAMES, ACCS } from './data.js';
 
@@ -12,7 +13,7 @@ const SAVE_KEY = 'huntnow.save', SAVE_V = 4;
 function freshSave() {
   return { v: SAVE_V, savedAt: Date.now(), hr: 1, hrXp: 0, mats: {}, weapons: WEAPON_ORDER.map((t, i) => ({ id: 'w' + (i + 1), type: t, elem: 'none', lvl: 1 })),
     armors: [{ id: 'a1', sp: 'none', lvl: 1 }], equip: { weapon: 'w1', armor: 'a1' }, comps: [], party: [], settings: { sound: true, vib: true, shake: true, dodgeBtn: true, hint: true, quality: 'auto', dlg: true },
-    stats: { hunts: 0, wins: 0, purified: 0, fails: 0 }, codex: {}, nodes: null, nextId: 20, cgear: [], bond: {}, story: {}, field: null };
+    stats: { hunts: 0, wins: 0, purified: 0, fails: 0 }, codex: {}, nodes: null, nextId: 20, cgear: [], bond: {}, story: {}, field: null, opened: false, hero: null, beats: [] };
 }
 function migrate(s) {
   if (!s || typeof s !== 'object') return freshSave();
@@ -35,6 +36,7 @@ function migrate(s) {
     s.cgear = s.cgear || []; s.bond = s.bond || {}; s.story = s.story || {}; s.field = null; (s.comps || []).forEach(c => { c.gear = c.gear || {}; }); s.v = 4;
     s.notice = (s.notice ? s.notice + ' ' : '') + 'v5 업데이트: 동료 방어구(동료 → 장비), 필드 지도, 동료 개인 스토리가 추가됐어요. 기존 기록은 그대로예요.'; }
   if (s.settings.dlg === undefined) s.settings.dlg = true;
+  if (s.opened === undefined) { s.opened = true; s.hero = s.hero || null; s.beats = BEATS.filter(b => b.hr < (s.hr || 1)).map(b => b.hr); } // 기존 플레이어: 오프닝 건너뛰고 주인공만 한 번 고름
   if (!s.settings.quality) s.settings.quality = 'auto'; // v4: 화질 설정 (저장 버전 유지, 기본값만 추가)
   return s;
 }
@@ -257,7 +259,7 @@ function startHunt(node) {
   ui(''); $('hud').classList.remove('hidden');
   const w = weaponById(save.equip.weapon), arm = armorById(save.equip.armor), wt = WEAPON_TYPES[w.type];
   const wm = { sns: { weapon: 'sns', shield: 0xb04050 }, gs: { weapon: 'gs' }, ls: { weapon: 'ls' }, db: { weapon: 'db', offhand: 'db' }, hammer: { weapon: 'whammer' }, lance: { weapon: 'lance', bigShield: 0x4a6ab0 }, bow: { weapon: null, offhand: 'bow' } }[w.type];
-  const pm = buildGirl(Object.assign({ skin: 0xffe3d3, hair: 0xf5d36a, eye: '#3a8aff', cloth: 0xf2f2ff, cloth2: 0xd84a6a, accent: 0xffd54a, hairStyle: 'pony', weaponColor: w.elem === 'none' ? 0xdfe6ff : elemColor(w.elem) }, wm));
+  const pm = buildGirl(Object.assign({ skin: 0xffe3d3, hair: 0xf5d36a, eye: '#3a8aff', cloth: 0xf2f2ff, cloth2: 0xd84a6a, accent: 0xffd54a, hairStyle: 'pony' }, heroOf().look, { weaponColor: w.elem === 'none' ? 0xdfe6ff : elemColor(w.elem) }, wm));
   const player = makeEntity(pm, { team: 0, name: '헌터', maxHp: 150 + armorDef(arm) * 0.5 | 0, atk: weaponAtk(w), def: armorDef(arm), elem: w.elem, wt, wtype: w.type, combo: -1, comboT: 0, queued: false, charge: 0, chargeLvl: 0, iframe: 0, rollStart: -9, invul: 0, counter: 0, hitsTaken: 0, isPlayer: true, spirit: 0, spiritLvl: 0, spiritT: 0, guardStart: -9, guarded: -9 });
   player.hp = player.maxHp; player.pos.set(0, 0, 8); player.face = Math.PI; player.outl = ownOutline(pm);
   const allies = [player];
@@ -681,7 +683,7 @@ function updHud() {
     else if (p.wtype === 'hammer' || p.wtype === 'db') { g = 0; }
     else { g = p.state === 'guard' ? 100 : 0; col = '#7fd8ff'; lbl = p.state === 'guard' ? '가드 중' : '가드'; }
     $('pCharge').style.width = g + '%'; $('pCharge').style.background = col; const gl = $('gLbl'); if (gl && gl._t !== lbl) { gl.textContent = lbl; gl._t = lbl; } }
-  $('spRing').firstElementChild.style.strokeDashoffset = 289 * (1 - G.sp / 100); $('bSp').classList.toggle('ready', G.sp >= 100); $('spLbl').textContent = G.sp >= 100 ? '발동!' : Math.floor(G.sp) + '%'; $('pName').textContent = `헌터 · ${WEAPON_TYPES[p.wtype].n} ${ELEM[p.elem].n}`;
+  $('spRing').firstElementChild.style.strokeDashoffset = 289 * (1 - G.sp / 100); $('bSp').classList.toggle('ready', G.sp >= 100); $('spLbl').textContent = G.sp >= 100 ? '발동!' : Math.floor(G.sp) + '%'; $('pName').textContent = `${heroOf().name} · ${WEAPON_TYPES[p.wtype].n} ${ELEM[p.elem].n}`;
   $('pStatus').innerHTML = Object.keys(p.status).map(k => `<b>${STAT_LBL[k]}</b>`).join('') + (G.buff > 0 ? '<b>공격↑</b>' : '') + (p.wtype === 'ls' ? `<b>기력 ${['-', '백', '황', '적'][p.spiritLvl]}</b>` : '');
   $('timerN').textContent = Math.ceil(G.time); $('timer').style.color = G.time < 20 ? '#ff6a6a' : '#fff';
   lagBar('pHpLag', p.hp / p.maxHp);
@@ -821,7 +823,23 @@ function fieldBody(w, a) { const f = fieldState(), reg = f.region, F = genField(
   return `<div class="note">HR <b>${save.hr}</b> · ${save.hrXp}/${save.hr * 100} · ${WEAPON_TYPES[w.type].n}(${ELEM[w.elem].n}) +${w.lvl} · 방어 ${armorDef(a)}</div><div class="tabs">${regs}</div>
     <div id="fieldMap" class="fmap ${REGIONS[reg].bg}">${gp}${mk}<div class="fme">🧭</div></div>${info}
     <div class="row"><button class="btn alt sm ${f.refresh >= MAX_REFRESH ? 'dis' : ''}" data-act="reroll">새로 찾기</button><span class="note">조작: 드래그=이동 · 탭=공격 · 휙=회피 · 길게=${holdName(w.type)}</span></div>`; }
+const heroOf = () => HEROES.find(h => h.id === save.hero) || HEROES[0];
+const hName = (t) => t.replaceAll('{h}', heroOf().name);
+let opIdx = 0, opReplay = false;
+function openingScreen() { const o = OPENING[opIdx];
+  ui(`<div class="op"><div class="opdots">${OPENING.map((_, i) => `<i class="${i === opIdx ? 'on' : ''}"></i>`).join('')}</div><h1>${o.t}</h1><p>${o.s}</p>
+    <div class="row"><button class="btn alt sm" data-op="skip">건너뛰기</button><button class="btn" data-op="next">${opIdx < OPENING.length - 1 ? '다음' : '시작하기'}</button></div></div>`, 'village gear op-wrap'); }
+let heroSel = null;
+function heroScreen() { const h = HEROES.find(x => x.id === heroSel);
+  ui(`<h1>주인공 선택</h1><p class="note">${save.stats.hunts ? '기존 기록은 그대로예요. 이야기를 함께할 사냥꾼을 한 번만 골라 주세요.' : '정화의 사냥꾼이 될 사람을 골라 주세요.'} 능력치 차이는 없어요.</p>
+    <div class="herolist">${HEROES.map(x => `<button class="hero-c ${heroSel === x.id ? 'on' : ''}" data-hero="${x.id}"><span class="hdot" style="background:#${x.look.hair.toString(16).padStart(6, '0')};border-color:#${x.look.cloth2.toString(16).padStart(6, '0')}"></span><span><b>${x.name}</b> <span class="note">${x.age}세 · ${x.tag}</span><br><span class="note">${x.motive}</span></span></button>`).join('')}</div>
+    <div class="finfo">${h ? `<span>"${h.line}"</span>` : '<span class="note">카드를 탭하면 한마디를 들을 수 있어요.</span>'}<button class="btn ${h ? '' : 'dis'}" data-act="heroOk">결정</button></div>`, 'village gear'); }
+function beatScreen(b) { ui(`<div class="op"><div class="note">메인 스토리 · HR ${b.hr}</div><h1>${b.t}</h1><p>${hName(b.s)}</p><div class="row"><button class="btn" data-beat="${b.hr}">확인</button></div></div>`, 'village gear op-wrap'); }
+function loreScreen() { ui(`<h1>${LORE.title}</h1><div class="storytext">${LORE.body.map(p => `<p>${p}</p>`).join('')}</div><div class="row"><button class="btn sm alt" data-act="village">← 돌아가기</button></div>`, 'village gear'); }
 function village() {
+  if (!save.opened) { openingScreen(); return; }
+  if (!save.hero) { heroScreen(); return; }
+  const beat = BEATS.find(b => save.hr >= b.hr && !(save.beats || []).includes(b.hr)); if (beat && !G) { beatScreen(beat); return; }
   clearIdle(); if (!G) idleScene(0, 0);
   if (!save.nodes) { save.nodes = genNodes(); persist(); }
   const w = weaponById(save.equip.weapon), a = armorById(save.equip.armor);
@@ -852,7 +870,7 @@ function village() {
   } else {
     const t = (k, n) => `<button class="btn sm ${save.settings[k] ? '' : 'alt'}" data-tog="${k}">${n}: ${save.settings[k] ? '켬' : '끔'}</button>`;
     body = `<h2>효과</h2><div class="row">${t('sound', '효과음')}${t('vib', '진동')}${t('shake', '화면 흔들림')}</div><h2>화질</h2><div class="row">${[['auto', '자동'], ['high', '높음'], ['mid', '중간'], ['low', '낮음']].map(([k, n]) => `<button class="btn sm ${save.settings.quality === k ? '' : 'alt'}" data-q="${k}">${n}</button>`).join('')}</div><p class="note">자동: 사냥 중 프레임이 떨어지면 해상도·그림자·풀숲을 단계적으로 줄여요. 지금 단계: ${['낮음', '중간', '높음'][qLevel]}</p><h2>조작</h2><div class="row">${t('dodgeBtn', '회피 버튼 표시')}${t('hint', '조작 안내')}${t('dlg', '동료 대사')}</div><p class="note">회피는 기본적으로 화면을 휙 밀어서 해요. 버튼이 편하면 회피 버튼을 켜세요(왼쪽 아래).</p>
-      <h2>저장</h2><p class="note"><b>이 기기에만 저장 · 클라우드 동기화 없음.</b> 플레이 중 자동 저장돼요. 다른 기기로 옮기려면 백업 파일을 내보낸 뒤 그 기기에서 가져오세요.<br>저장 형식 v${save.v} · ${saveStatus}</p>
+      <h2>이야기</h2><div class="row"><button class="btn sm alt" data-act="replayOp">오프닝 다시 보기</button><button class="btn sm alt" data-act="lore">세계관</button></div><p class="note">주인공: ${heroOf().name} — ${heroOf().motive}</p><h2>저장</h2><p class="note"><b>이 기기에만 저장 · 클라우드 동기화 없음.</b> 플레이 중 자동 저장돼요. 다른 기기로 옮기려면 백업 파일을 내보낸 뒤 그 기기에서 가져오세요.<br>저장 형식 v${save.v} · ${saveStatus}</p>
       <div class="row"><button class="btn sm" data-act="export">백업 내보내기</button><button class="btn sm alt" data-act="import">백업 가져오기</button><button class="btn sm alt" data-act="reset">기록 초기화</button></div><input type="file" id="impFile" accept="application/json,.json" class="hidden">
       <p class="note">설치: 브라우저 메뉴의 "홈 화면에 추가"로 앱처럼 실행할 수 있어요 (오프라인 지원).</p>`;
   }
@@ -893,12 +911,12 @@ function showResult() {
   const r = lastResult, sc = r.sc, m0 = r.mons[0], S = S_[m0.sp]; S.img2 = spImg(m0.sp);
   const rows = [['남은 시간', sc.time, 20], ['남은 체력', sc.hp, 20], ['부위 파괴', sc.parts, 30], ['피격 횟수 (' + r.st.hits + '회)', sc.hits, 15], ['속성 상성', sc.elem, 15]];
   const purifyBlock = !r.win ? `<p>사냥 실패. 그래도 <b>경험치 +${r.xp}</b>${Object.keys(r.drops).length ? '와 일부 소재' : ''}를 얻었어요. 다음엔 붉은 범위가 노랗게 차오를 때 회피해 보세요.</p>` :
-    r.purified ? `<p class="big">✨ ${r.purified} 정화 성공! 동료로 합류했어요.</p><p>"${S_[r.purSp].lines.purify}"</p>` :
+    r.purified ? `<p class="big">✨ ${r.purified} 정화 성공!</p><p class="note">${PURIFY_SCENE[r.purSp]}</p><p>${r.purified}: "${S_[r.purSp].lines.purify}"</p>` :
     (r.mons.map((m, i) => { const pi = r.purInfo[i], Sm = S_[m.sp];
-      if (pi.own) return `<p>✔ <b>${Sm.short}</b>는 이미 동료예요. 정화 대신 <b>보너스 소재</b>를 받았어요.</p>`;
+      if (pi.own) return `<p>✔ <b>${Sm.short}</b>는 이미 동료예요. 정화 대신 <b>보너스 소재</b>를 받았어요.</p><p class="note">${PURIFY_FAIL.own}</p>`;
       if (pi.ok) return `<p class="big">${Sm.short} 정화 가능!</p><p class="note">종마다 단 한 명만 영입할 수 있어요. 역할을 고르세요.</p><div class="row">${Sm.roles.map(ro => `<button class="btn" data-pur="${i}:${ro}">${Sm.short} → ${ROLES[ro]}</button>`).join('')}</div>`;
       const why = [sc.total < r.need ? `점수 ${sc.total}/${r.need}` : '', !pi.lvlOk ? `Lv${PURIFY_MIN_LVL} 이상 필요(지금 Lv${m.lvl})` : '', r.st.broken < 1 ? '부위 파괴 1곳 이상 필요' : ''].filter(Boolean).join(' · ');
-      return `<p>${Sm.short} 정화 불가 — ${why}. 부위 파괴·약점 속성·피격 줄이기로 점수를 올리세요.</p>`; }).join(''));
+      const fl = !pi.lvlOk ? PURIFY_FAIL.lvl : r.st.broken < 1 ? PURIFY_FAIL.part : PURIFY_FAIL.score; return `<p>${Sm.short} 정화 불가 — ${why}.</p><p class="note">${heroOf().name}: "${fl}"</p>`; }).join(''));
   ui(`<div class="card"><img src="${S.img2}" alt="" style="width:90px;height:120px"><div class="t"><h1>${r.win ? '토벌 성공!' : '사냥 실패'}</h1>"${r.win ? S.lines.win : S.lines.lose}"</div></div>
     <h2>정화 판정 (전투 결과 기준)</h2><table class="score">${rows.map(([n, v, mx]) => `<tr><td>${n}</td><td><b>${v}</b> / ${mx}</td></tr>`).join('')}<tr><td><b>합계</b></td><td class="big">${sc.total} <span class="note">/ 기준 ${r.need}</span></td></tr></table><p class="note">정화 조건: 점수 ${r.need}점 이상 + 몬스터 Lv${PURIFY_MIN_LVL} 이상 + 부위 파괴 1곳 이상 + 아직 없는 종</p>
     ${purifyBlock}
@@ -918,6 +936,12 @@ uiEl.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
   if (b.classList.contains('dis')) return;
   if (d.tab) { tab = d.tab; village(); return; }
+  if (d.op) { if (d.op === 'next' && opIdx < OPENING.length - 1) { opIdx++; openingScreen(); return; } opIdx = 0; save.opened = true; persist(); village(); return; }
+  if (d.hero) { heroSel = d.hero; heroScreen(); return; }
+  if (d.act === 'heroOk') { if (!heroSel) return; save.hero = heroSel; persist(); village(); return; }
+  if (d.beat) { save.beats = save.beats || []; save.beats.push(+d.beat); persist(); village(); return; }
+  if (d.act === 'replayOp') { opIdx = 0; save.opened = false; village(); return; }
+  if (d.act === 'lore') { loreScreen(); return; }
   if (d.story) { storyComp = d.story; storyChap = null; storyScreen(); return; }
   if (d.chap !== undefined) { storyChap = +d.chap; storyScreen(); return; }
   if (d.cgear) { gearComp = d.cgear; gearScreen(); return; }
@@ -962,5 +986,5 @@ uiEl.addEventListener('change', async (e) => {
 });
 addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
-window.HN = { startHuntForTest: (i = 0) => { village(); clearIdle(); startHunt(save.nodes[i]); }, startHuntNode: (n) => { clearIdle(); startHunt(n); }, damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
+window.HN = { skipIntro: () => { save.opened = true; save.hero = save.hero || 'aria'; save.beats = BEATS.map(b => b.hr); persist(); village(); }, startHuntForTest: (i = 0) => { village(); clearIdle(); startHunt(save.nodes[i]); }, startHuntNode: (n) => { clearIdle(); startHunt(n); }, damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
 village();
