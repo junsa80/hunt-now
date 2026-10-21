@@ -85,8 +85,7 @@ const results = []; const ok = (name, pass, info = '') => { results.push({ name,
   }
   // 정화 규칙 (전투 결과를 직접 세팅해 판정 로직만 검증)
   async function fakeEnd(page, lvl, broken, sp) {
-    await ev(page, (sp) => { HN.save.nodes = [{ id: 0, lvl: 2, mons: [{ sp, lvl: 2 }] }]; HN.village(); }, sp);
-    await page.evaluate(() => HN.startHuntForTest(0)); await sleep(500);
+    await ev(page, (sp) => HN.startHuntNode({ id: 0, lvl: 2, mons: [{ sp, lvl: 2 }] }), sp); await sleep(500);
     await ev(page, (lvl, broken) => { const G = HN.G; G.monsters[0].lvl = lvl; G.stats.broken = broken; G.stats.weakHits = 5; G.player.elem = G.monsters[0].weak; G.time = 90; G.monsters[0].hp = 0; HN.endHunt(true); }, lvl, broken); await sleep(900);
     return ev(page, () => ({ total: HN.result.sc.total, info: HN.result.purInfo, btns: document.querySelectorAll('[data-pur]').length }));
   }
