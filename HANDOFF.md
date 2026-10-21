@@ -37,3 +37,9 @@
 - 테스트 실행: Node 20+, `npm i puppeteer-core@24`, Chrome/Chromium. `python3 -m http.server 18923` 띄운 뒤 `NODE_PATH=<...>/node_modules URL=http://127.0.0.1:18923/ SHOTS=/tmp/shots node test/touch-v2.js` (41항목), `test/feel-v4.js` (23항목). 기본 SHOTS 경로(/workspace/artifacts/...)는 Grok Bot 작업 상자 전용이라 새 환경에선 SHOTS를 꼭 지정.
 - 아직 남은 일: 동료 방어구, 필드 장면, 개인 스토리, 클라우드 동기화, 신규 3종 2D 일러스트, 실제 폰 테스트.
 - 브랜치: `main`만 실사용. `access-check-20261020`(쓰기 권한 확인용 빈 커밋)은 사용자 승인 후 삭제 예정.
+
+## v5 진행 중 (브랜치 grokbot/v5-armor-field-story, GrokBot, 2026-10-21)
+- [완료] 비주얼·손맛 1차: ACES 톤매핑+비네트 색 보정, 몬스터 어깨 갑주·등 가시(레벨 비례)·팔 보호대, 구르기·발걸음 먼지, HP바 확대, 무기 게이지(모으기 단계/기력/가드) 라벨, 회피 버튼 새 디자인(새 저장은 기본 표시), 사냥 시간 100→75초.
+  - 측정(test/shots-v5.js, 헤드리스 swiftshader): 탭→공격 시작 약 13~62ms(전)/20~52ms(후), FPS 28(전)/34(후) — 소프트웨어 렌더라 실제 폰 수치 아님.
+  - touch-v2 41/41(한 번은 두 손가락 항목이 타이밍으로 실패, 재실행 통과), feel-v4 23/23.
+- [다음] 동료 방어구 → 필드 장면 → 개인 스토리(STORY.md) → SW v5·저장 v4 이관.
