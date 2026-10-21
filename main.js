@@ -10,7 +10,7 @@ const SAVE_KEY = 'huntnow.save', SAVE_V = 3;
 // ───────── 저장 ─────────
 function freshSave() {
   return { v: SAVE_V, savedAt: Date.now(), hr: 1, hrXp: 0, mats: {}, weapons: WEAPON_ORDER.map((t, i) => ({ id: 'w' + (i + 1), type: t, elem: 'none', lvl: 1 })),
-    armors: [{ id: 'a1', sp: 'none', lvl: 1 }], equip: { weapon: 'w1', armor: 'a1' }, comps: [], party: [], settings: { sound: true, vib: true, shake: true, dodgeBtn: false, hint: true, quality: 'auto' },
+    armors: [{ id: 'a1', sp: 'none', lvl: 1 }], equip: { weapon: 'w1', armor: 'a1' }, comps: [], party: [], settings: { sound: true, vib: true, shake: true, dodgeBtn: true, hint: true, quality: 'auto' },
     stats: { hunts: 0, wins: 0, purified: 0, fails: 0 }, codex: {}, nodes: null, nextId: 20 };
 }
 function migrate(s) {
@@ -72,7 +72,7 @@ const vib = (ms) => { if (save.settings.vib && navigator.vibrate) navigator.vibr
 // ───────── 렌더러/씬 ─────────
 const cv = $('cv');
 const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' });
-renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.18; // v5 색 보정 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0xbcdcff, 30, 95);
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 240);
 scene.add(new THREE.HemisphereLight(0xfff4e8, 0x5a7a4a, 1.45));
@@ -218,7 +218,7 @@ let pollInput = () => {};
 
 // ───────── 전투 상태 ─────────
 let G = null; // 현재 사냥
-const HUNT_TIME = 100;
+const HUNT_TIME = 75; // v5: 몬헌 나우식 75초 사냥
 const MSCALE = 1.22; // 몬스터를 헌터보다 확실히 크게 (몬헌 나우의 체급 차)
 const WEIGHT = { sns: 0.6, db: 0.5, ls: 0.85, bow: 0.5, lance: 0.9, gs: 1.45, hammer: 1.3 }; // 히트스톱·흔들림·타격음 무게
 function weaponById(id) { return save.weapons.find(w => w.id === id); }
@@ -254,7 +254,7 @@ function startHunt(node) {
     const e = makeEntity(m, { team: 1, sp: mn.sp, S, lvl: L, name: `${S.short} Lv${L}`, maxHp: hp, dmg: S.dmg * (1 + 0.15 * (L - 1)), speed: S.speed * (1 + 0.03 * L), elem: S.elem, weak: S.weak, ai: 'move', aiT: 1.5 + i, atkCd: 1.6 + i * 1.5, cur: null, aggro: null, taunt: 0, defDown: 0, slow: 0,
       parts: S.parts.map(p => ({ ...p, hp: Math.round(hp * 0.22), max: Math.round(hp * 0.22), broken: false })) });
     const glow = new THREE.Mesh(new THREE.SphereGeometry(0.75, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff2030, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending })); glow.scale.set(1, 1.6, 1); glow.position.y = 1.0; glow.visible = false; m.add(glow); e.glow = glow;
-    e.outl = ownOutline(m); e.flinch = 0; e.turnRate = 2.4; e.lastK = null;
+    armorize(m, S, L); e.outl = ownOutline(m); e.flinch = 0; e.turnRate = 2.4; e.lastK = null;
     e.hp = hp; e.pos.set((i - (node.mons.length - 1) / 2) * 5, 0, -6); e.face = 0; return e; });
   G = { node, player, allies, monsters, time: HUNT_TIME, t: 0, hitstop: 0, slowmo: 0, shake: 0, lock: monsters[0], camYaw: Math.PI, camPos: new THREE.Vector3(0, 5, 16), over: false,
     stats: { hits: 0, broken: 0, weakHits: 0, totalHits: 0, dealt: 0, perfect: 0, guards: 0 }, buff: 0, log: [], sp: 30 };
@@ -262,6 +262,12 @@ function startHunt(node) {
   buildPartyHud(); banner('사냥 시작!', 900); $('holdName').textContent = holdName(w.type); $('spName').textContent = wt.sp.n;
   $('bDodge').classList.toggle('hidden', !save.settings.dodgeBtn); $('ctrlHint').classList.toggle('hidden', !save.settings.hint); $('ctrlHint').style.opacity = 1; setTimeout(() => { $('ctrlHint').style.opacity = 0; }, 7000);
 }
+// v5: 몬스터 실루엣 강화 — 어깨 갑주·등 가시·팔 보호대(레벨이 높을수록 가시가 늘어남). 공유 지오메트리라 가벼움
+const SPIKE = new THREE.ConeGeometry(0.07, 0.26, 6), PLATE = new THREE.SphereGeometry(0.15, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), BRACER = new THREE.CylinderGeometry(0.075, 0.09, 0.2, 8);
+function armorize(model, S, L) { const r = model.userData.rig; if (!r) return; const mA = toon(S.look.accent), mC = toon(S.look.cloth2);
+  const add = (parent, geo, mat, x, y, z, rx = 0, rz = 0, sc = 1) => { if (!parent) return; const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); o.rotation.set(rx, 0, rz); o.scale.setScalar(sc); o.castShadow = true; parent.add(o); };
+  for (const sd of [-1, 1]) { add(r.torso, PLATE, mC, 0.2 * sd, 0.36, 0, 0, -0.5 * sd); add(r.torso, SPIKE, mA, 0.27 * sd, 0.44, 0, 0, -0.9 * sd); const arm = sd < 0 ? r.armL : r.armR; add(arm?.el, BRACER, mC, 0, -0.12, 0); }
+  const n = Math.min(5, 2 + Math.floor(L / 2)); for (let i = 0; i < n; i++) add(r.torso, SPIKE, mA, 0, 0.36 - i * 0.09, -0.14, -0.6, 0, 1 - i * 0.12); }
 function buildPartyHud() { $('party').innerHTML = G.allies.slice(1).map((a, i) => `<div>${a.name} <span class="tag">${ROLES[a.role]}</span><i id="ph${i}"></i></div>`).join(''); }
 
 // ───────── 전투 로직 ─────────
@@ -399,7 +405,7 @@ function cancelable(p) { // 회피로 끊을 수 있는 상태 (공격 후딜 �
   if (p.state === 'hit') return p.st > 0.3;
   return false;
 }
-function doRoll(p, dir) { p.state = 'roll'; p.st = 0; p.rollStart = G.t; p.iframe = 0.32; p.combo = -1; p.charge = 0; p.chargeLvl = 0; setRing(0); p.rollDir = dir; p.face = dir; p.queued = false; sfx('roll'); G.stats.dodges = (G.stats.dodges || 0) + 1; }
+function doRoll(p, dir) { burst(p.pos.clone().setY(0.1), 0xc8b08a, 9, 3, 0.45); p.state = 'roll'; p.st = 0; p.rollStart = G.t; p.iframe = 0.32; p.combo = -1; p.charge = 0; p.chargeLvl = 0; setRing(0); p.rollDir = dir; p.face = dir; p.queued = false; sfx('roll'); G.stats.dodges = (G.stats.dodges || 0) + 1; }
 function startSpecial(p) { const sp = p.wt.sp; p.state = 'special'; p.st = 0; p.spIdx = 0; G.sp = 0; G.stats.specials = (G.stats.specials || 0) + 1; banner(sp.n + '!', 1000); G.slowmo = 0.12; $('flash').style.opacity = 0.45; setTimeout(() => $('flash').style.opacity = 0, 120); sfx('perfect'); vib([20, 20, 40]); setRing(0); p.charge = 0; }
 function updSpecial(p, dt) {
   const sp = p.wt.sp; p.st += dt; p.run = 0; if (G.lock && alive(G.lock)) p.face = angTo(p.pos, G.lock.pos);
@@ -650,7 +656,12 @@ function lagBar(id, v, key) { const el = $(id); if (!el) return; if (lagV[id + '
 function updHud() {
   const p = G.player, m = G.lock || G.monsters[0];
   $('pHp').style.width = (p.hp / p.maxHp * 100) + '%';
-  $('pCharge').style.width = (p.wtype === 'ls' ? p.spirit : 0) + '%'; $('pCharge').style.background = p.wtype === 'ls' ? ['#ddd', '#fff', '#ffe066', '#ff5050'][p.spiritLvl] : '#ffd54a';
+  { let g = 0, col = '#ffd54a', lbl = '';
+    if (p.wtype === 'ls') { g = p.spirit; col = ['#ddd', '#fff', '#ffe066', '#ff5050'][p.spiritLvl]; lbl = '기력 ' + ['-', '백', '황', '적'][p.spiritLvl]; }
+    else if (p.wt.hold === 'charge') { g = (p.chargeLvl || 0) / 3 * 100; col = ['#ffd54a', '#fff', '#ffe066', '#ff5050'][p.chargeLvl || 0]; lbl = p.chargeLvl ? '모으기 ' + p.chargeLvl + '단계' : '모으기'; }
+    else if (p.wtype === 'hammer' || p.wtype === 'db') { g = 0; }
+    else { g = p.state === 'guard' ? 100 : 0; col = '#7fd8ff'; lbl = p.state === 'guard' ? '가드 중' : '가드'; }
+    $('pCharge').style.width = g + '%'; $('pCharge').style.background = col; const gl = $('gLbl'); if (gl && gl._t !== lbl) { gl.textContent = lbl; gl._t = lbl; } }
   $('spRing').firstElementChild.style.strokeDashoffset = 289 * (1 - G.sp / 100); $('bSp').classList.toggle('ready', G.sp >= 100); $('spLbl').textContent = G.sp >= 100 ? '발동!' : Math.floor(G.sp) + '%'; $('pName').textContent = `헌터 · ${WEAPON_TYPES[p.wtype].n} ${ELEM[p.elem].n}`;
   $('pStatus').innerHTML = Object.keys(p.status).map(k => `<b>${STAT_LBL[k]}</b>`).join('') + (G.buff > 0 ? '<b>공격↑</b>' : '') + (p.wtype === 'ls' ? `<b>기력 ${['-', '백', '황', '적'][p.spiritLvl]}</b>` : '');
   $('timerN').textContent = Math.ceil(G.time); $('timer').style.color = G.time < 20 ? '#ff6a6a' : '#fff';
@@ -699,6 +710,7 @@ function step(rdt) {
   if (G.lock && alive(G.lock)) { lockMark.visible = true; lockMark.position.x = G.lock.pos.x; lockMark.position.z = G.lock.pos.z; lockMark.scale.setScalar(G.lock.S.scale * (1 + Math.sin(T * 6) * 0.05)); } else lockMark.visible = false;
   const lp = G.lock && alive(G.lock) && G.lock.parts.find(x => !x.broken);
   if (lp) { weakMark.visible = true; weakMark.position.copy(anchorWorld(G.lock, lp)); const k = G.lock.ai === 'stun' || G.lock.ai === 'recover' ? 1.6 : 1; weakMark.scale.setScalar(k * (1 + Math.sin(T * 8) * 0.25)); weakMark.material.opacity = G.lock.ai === 'recover' || G.lock.ai === 'stun' ? 0.8 : 0.4; } else weakMark.visible = false;
+  for (const m of G.monsters) if (m.run > 0.6 && Math.random() < 0.18) burst(m.pos.clone().setY(0.08), 0xb89c78, 2, 1.6, 0.4); // 발걸음 먼지
   updCamera(rdt); updHud();
 }
 // 마을 배경 연출용 캐릭터

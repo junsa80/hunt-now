@@ -8,13 +8,13 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>헌트 나우: 정화의 사냥꾼</title>
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 </head><body>
 <canvas id="cv"></canvas>
 <div id="hud" class="hidden">
   <div id="topbar">
-    <div class="bars"><div class="nm" id="pName">헌터</div><div class="bar hp"><b id="pHpLag" class="lag"></b><i id="pHp"></i></div><div class="bar st"><i id="pCharge"></i></div><div id="pStatus" class="stat"></div></div>
-    <div id="timer"><svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="13" r="8" fill="none" stroke="#fff" stroke-width="2.5"/><path d="M12 13V8M9 2h6" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg><span id="timerN">100</span></div>
+    <div class="bars"><div class="nm" id="pName">헌터</div><div class="bar hp"><b id="pHpLag" class="lag"></b><i id="pHp"></i></div><div class="bar st"><i id="pCharge"></i><span id="gLbl"></span></div><div id="pStatus" class="stat"></div></div>
+    <div id="timer"><svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="13" r="8" fill="none" stroke="#fff" stroke-width="2.5"/><path d="M12 13V8M9 2h6" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg><span id="timerN">75</span></div>
     <div class="bars right" id="mPanel"><div class="nm" id="mName">몬스터</div><div class="bar mhp"><b id="mHpLag" class="lag"></b><i id="mHp"></i></div><div id="mParts" class="parts"></div><div id="mStatus" class="stat"></div></div>
   </div>
   <div id="party"></div>
@@ -31,8 +31,8 @@
   <button id="bDodge" class="rb mid hidden">회피</button>
   <div id="ctrlHint">드래그=이동 · 탭=공격 · 휙 밀기=회피 · 길게=<span id="holdName"></span></div>
 </div>
-<div id="dmgLayer"></div>
+<div id="grade"></div><div id="dmgLayer"></div>
 <div id="flash"></div>
 <div id="ui"></div>
-<script type="module" src="main.js?v=4"></script>
+<script type="module" src="main.js?v=5"></script>
 </body></html>

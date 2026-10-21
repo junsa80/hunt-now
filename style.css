@@ -100,3 +100,13 @@ h1{margin:4px 0 8px;font-size:24px}h2{font-size:18px;margin:14px 0 6px}
 @keyframes dpop{0%{transform:translate(-50%,-50%) scale(.4);opacity:0}15%{transform:translate(-50%,-80%) scale(1.25);opacity:1}35%{transform:translate(-50%,-90%) scale(1)}100%{transform:translate(-50%,-160%) scale(.95);opacity:0}}
 @media (orientation:portrait){#line{top:auto;bottom:calc(150px + env(safe-area-inset-bottom));font-size:15px}}
 @media (orientation:landscape){#line{top:auto;bottom:22px;font-size:15px}}
+
+/* ── v5 비주얼 패스: 색 보정·큰 HUD·깔끔한 회피 버튼 ── */
+#grade{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 45%,transparent 55%,#0a0820 135%);mix-blend-mode:multiply}
+#hud .bar.hp{height:18px;border-radius:9px;border:2px solid #fffa}
+#hud .bar.mhp{height:16px;border-radius:8px;border:2px solid #fffa}
+#hud .bar.st{height:12px;position:relative;border-radius:6px}
+#gLbl{position:absolute;left:6px;top:-2px;font-size:10px;font-weight:800;z-index:2;text-shadow:0 1px 2px #000}
+#mPanel{max-width:none}
+.rb.mid{width:78px;height:78px;background:radial-gradient(circle at 40% 35%,#9ad4ff,#2a6ad8 70%);border:3px solid #fff;box-shadow:0 3px 10px #0008;font-size:16px}
+.rb.mid:active,.rb.sp:active{transform:scale(.92)}
