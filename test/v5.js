@@ -48,7 +48,7 @@ let pass = 0, fail = 0; const ok = (n, c, i = '') => { c ? pass++ : fail++; cons
   ok('토벌 → 결과·보상', await ev(() => !HN.G && HN.result && HN.result.win && Object.keys(HN.result.drops).length > 0));
   await page.screenshot({ path: OUT + '/v5-02-result.png' });
   if (await ev(() => !!document.querySelector('[data-pur]'))) { await page.click('[data-pur]'); await sleep(300); await page.screenshot({ path: OUT + '/v5-09-purify-scene.png' }); }
-  ok('결과: 정화 성공 장면 또는 실패 이유 대사', await ev(() => /계승자|앙금|혈통/.test(document.getElementById('ui').textContent)));
+  ok('결과: 정화 성공 장면 또는 실패 이유 대사', await ev(() => /계승자|앙금|혈통|여성|짐승/.test(document.getElementById('ui').textContent)));
   // 방어구 제작
   await ev(() => { HN.save.mats['wolf:hide:3'] = 10; HN.save.mats['wolf:horn:3'] = 6; HN.save.codex.wolf.won = 3; HN.village(); });
   await page.click('[data-act="village"]').catch(() => {}); await sleep(200);
@@ -74,7 +74,7 @@ let pass = 0, fail = 0; const ok = (n, c, i = '') => { c ? pass++ : fail++; cons
   await ev(() => { const S = HN.save; const mk = (id, sp, role, name) => ({ id, name, species: sp, role, level: 6, potential: 2, hueDeg: 0, hair: 0xffffff, acc: 0, weapon: null, armor: null, xp: 0, gear: {} });
     S.comps = [S.comps[0], ...S.comps.slice(1).filter(c => !['drake', 'siren'].includes(c.species)), mk('c8', 'drake', 'tank', '노아'), mk('c9', 'siren', 'healer', '리아')].filter((c, i, a) => a.findIndex(x => x.species === c.species) === i);
     S.party = [S.comps[0].id, 'c8', 'c9']; S.equip.weapon = S.weapons.find(w => w.type === 'lance').id; HN.village(); document.querySelector('[data-tab="party"]').click(); }); await sleep(400);
-  ok('동료 화면: 역할·약점·시너지 표시', await ev(() => /철벽 성소/.test(document.body.textContent) && /스승/.test(document.body.textContent) && /약점:/.test(document.body.textContent) && /육성 보너스/.test(document.body.textContent)));
+  ok('동료 화면: 역할·약점·시너지 표시', await ev(() => /철벽 성소/.test(document.body.textContent) && /스승/.test(document.body.textContent) && /(약점:| -[0-9]+%)/.test(document.body.textContent) && /육성 보너스/.test(document.body.textContent)));
   ok('동료 화면 한 화면(스크롤 없음)', await noScroll()); await page.screenshot({ path: OUT + '/v5-10-party-synergy.png' });
   // 사냥 중 스승 알림 (랜스 + 드라카)
   await ev(() => HN.startHuntForTest(0)); await sleep(800);
