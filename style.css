@@ -120,3 +120,21 @@ h1{margin:4px 0 8px;font-size:24px}h2{font-size:18px;margin:14px 0 6px}
 .grow{display:flex;justify-content:space-between;align-items:center;gap:6px;background:#ffffff10;border:1px solid #fff2;border-radius:12px;padding:7px 9px;font-size:13px;line-height:1.35}
 .grow.eq{border-color:#7fffb0}.grow .col{display:flex;flex-direction:column;gap:4px}
 .up{color:#7fffb0}.down{color:#ff8a8a}
+
+/* ── v5 필드 지도 ── */
+.fmap{position:relative;height:min(38vh,320px);border-radius:16px;overflow:hidden;border:2px solid #fff3;margin:4px 0}
+.fmap.meadow{background:radial-gradient(circle at 30% 70%,#7cc860 0 18%,transparent 19%),radial-gradient(circle at 80% 30%,#4f9a48 0 14%,transparent 15%),linear-gradient(160deg,#9edc78,#5aa850)}
+.fmap.snow{background:radial-gradient(circle at 25% 30%,#fff 0 15%,transparent 16%),radial-gradient(circle at 75% 75%,#cfe6ff 0 18%,transparent 19%),linear-gradient(160deg,#e8f4ff,#9cc4e8)}
+.fmap.coast{background:linear-gradient(115deg,#f0dca0 0 42%,#6ad0e8 43% 60%,#2a8ad0 61%)}
+.fmon{position:absolute;transform:translate(-50%,-50%);background:none;border:0;padding:0;color:#fff;display:flex;flex-direction:column;align-items:center;animation:bob 2s ease-in-out infinite}
+.fmon img{width:54px;height:54px;border-radius:50%;object-fit:cover;object-position:top;border:3px solid #fff;box-shadow:0 3px 8px #0008}
+.fmon span{font-size:12px;font-weight:900;background:#000a;border-radius:8px;padding:0 6px;margin-top:-6px}
+.fmon.r1 img{border-color:#7fd8ff;box-shadow:0 0 12px #7fd8ff}.fmon.r2 img{border-color:#ffd24a;box-shadow:0 0 16px #ffb030}
+.fmon.sel img{outline:3px solid #ff5a8a;outline-offset:2px}
+.tag.r1{background:#2a6ad8}.tag.r2{background:#c88a10}
+.fgath{position:absolute;transform:translate(-50%,-50%);background:#fff3;border:2px dashed #fff;border-radius:50%;width:40px;height:40px;color:#fff59a;font-size:18px;padding:0}
+.fgath span{position:absolute;top:38px;left:50%;transform:translateX(-50%);font-size:10px;white-space:nowrap;background:#0008;border-radius:6px;padding:0 4px;color:#fff}
+.fme{position:absolute;left:50%;bottom:4%;transform:translateX(-50%);font-size:24px}
+.finfo{display:flex;gap:8px;align-items:center;justify-content:space-between;background:#ffffff12;border-radius:12px;padding:8px;min-height:64px;font-size:13px}
+@keyframes bob{50%{transform:translate(-50%,-58%)}}
+@media (orientation:portrait){#ui.village{top:22%}}

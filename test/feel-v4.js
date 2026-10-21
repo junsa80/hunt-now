@@ -16,7 +16,7 @@ const results = []; const ok = (n, p, i = '') => { results.push(p); console.log(
   const tap = (page, x, y) => gesture(page, [[0, x, y, 'touchstart'], [70, x, y, 'touchend']]);
   async function hunt(page, wtype, node = 0, freeze = true) {
     await ev(page, (t) => { const s = HN.save; s.equip.weapon = s.weapons.find(w => w.type === t && w.elem === 'none').id; HN.village(); }, wtype);
-    await page.click(`[data-hunt="${node}"]`); await sleep(700);
+    await page.evaluate((n) => HN.startHuntForTest(n), node); await sleep(700);
     await ev(page, (fz) => { const m = HN.G.monsters[0]; if (fz) { m.atkCd = 99; m.ai = 'move'; } HN.G.player.pos.set(m.pos.x, 0, m.pos.z + 3); HN.G.time = 999; }, freeze); await sleep(300);
   }
   for (const [W, H, tag] of [[390, 844, 'port'], [844, 390, 'land']]) {

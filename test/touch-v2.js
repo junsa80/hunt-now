@@ -11,7 +11,7 @@ const results = []; const ok = (name, pass, info = '') => { results.push({ name,
   const ev = (page, f, ...a) => page.evaluate(f, ...a);
   async function startHunt(page, wtype, node = 0) {
     await ev(page, (t) => { const s = HN.save; s.equip.weapon = s.weapons.find(w => w.type === t && w.elem === 'none').id; HN.village(); }, wtype);
-    await page.click(`[data-hunt="${node}"]`); await sleep(700);
+    await page.evaluate((n) => HN.startHuntForTest(n), node); await sleep(700);
     await ev(page, () => { const m = HN.G.monsters[0]; m.atkCd = 99; m.ai = 'move'; HN.G.player.pos.set(m.pos.x, 0, m.pos.z + 2.6); HN.G.time = 999; }); await sleep(300);
   }
   // 헤드리스에서는 CDP 터치 호출 1회에 ~150ms 지연이 생겨 빠른 탭/플릭 타이밍이 깨짐 → 페이지 안에서 정확한 시간 간격으로 TouchEvent를 발생시킴 (같은 입력 핸들러 경로)
@@ -27,7 +27,7 @@ const results = []; const ok = (name, pass, info = '') => { results.push({ name,
   // ── 세로 390x844 ──
   let page = await newPage(390, 844);
   await page.goto(URL); await ev(page, () => localStorage.clear()); await page.reload(); await sleep(1500);
-  ok('새 저장 v3 + 무기 7종', await ev(page, () => HN.save.v === 3 && HN.save.weapons.length === 7));
+  ok('새 저장 v4 + 무기 7종', await ev(page, () => HN.save.v === 4 && HN.save.weapons.length === 7));
   await page.screenshot({ path: OUT + '/port-01-village.png' });
   await page.click('[data-tab="forge"]'); await sleep(200); await page.click('[data-ftype="bow"]'); await sleep(200); await page.screenshot({ path: OUT + '/port-02-forge-bow.png', fullPage: false });
   await page.click('[data-tab="codex"]'); await sleep(600); await page.screenshot({ path: OUT + '/port-03-codex.png' });
@@ -86,7 +86,7 @@ const results = []; const ok = (name, pass, info = '') => { results.push({ name,
   // 정화 규칙 (전투 결과를 직접 세팅해 판정 로직만 검증)
   async function fakeEnd(page, lvl, broken, sp) {
     await ev(page, (sp) => { HN.save.nodes = [{ id: 0, lvl: 2, mons: [{ sp, lvl: 2 }] }]; HN.village(); }, sp);
-    await page.click('[data-hunt="0"]'); await sleep(500);
+    await page.evaluate(() => HN.startHuntForTest(0)); await sleep(500);
     await ev(page, (lvl, broken) => { const G = HN.G; G.monsters[0].lvl = lvl; G.stats.broken = broken; G.stats.weakHits = 5; G.player.elem = G.monsters[0].weak; G.time = 90; G.monsters[0].hp = 0; HN.endHunt(true); }, lvl, broken); await sleep(900);
     return ev(page, () => ({ total: HN.result.sc.total, info: HN.result.purInfo, btns: document.querySelectorAll('[data-pur]').length }));
   }
@@ -114,7 +114,7 @@ const results = []; const ok = (name, pass, info = '') => { results.push({ name,
   await page2.evaluateOnNewDocument((o) => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', 1); localStorage.setItem('huntnow.save', JSON.stringify(o)); } }, old);
   await page2.goto(URL); await sleep(1500); page = page2;
   const mg = await ev(page, () => { const s = HN.save; return { v: s.v, comps: s.comps.map(c => c.name), party: s.party, w: s.weapons.length, hide: s.mats['wolf:hide:1'] || 0, hide2: s.mats['wolf:hide:2'] || 0, notice: s.notice || '', lvl: s.weapons[0].lvl, gsFire: s.weapons.some(w => w.type === 'gs' && w.elem === 'fire') }; });
-  ok('v2→v3 이관: 종마다 최강 1명 유지', mg.v === 3 && mg.comps.join() === '미나,세라' && mg.party.join() === 'c4,c6', JSON.stringify(mg.comps) + ' party ' + mg.party);
+  ok('v2→v3 이관: 종마다 최강 1명 유지', mg.v === 4 && mg.comps.join() === '미나,세라' && mg.party.join() === 'c4,c6', JSON.stringify(mg.comps) + ' party ' + mg.party);
   ok('v2→v3 이관: 중복분 소재 전환 + 알림 + 기존 무기 유지', mg.hide >= 4 && mg.hide2 >= 3 && mg.notice.includes('루루') && mg.w === 7 && mg.lvl === 3 && mg.gsFire, `wolf 가죽 하급 1→${mg.hide}, 중급 ${mg.hide2}, 무기 ${mg.w}`);
   await page.screenshot({ path: OUT + '/port-08-migration-notice.png' });
   await page.click('[data-act="ack"]'); await sleep(200);

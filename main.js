@@ -758,13 +758,15 @@ function endHunt(win) {
   const purInfo = mons.map(m => { const own = owned(m.sp), q = qualOf(m.lvl);
     if (win && own) { add(`${m.sp}:hide:${q}`, 2); add(`${m.sp}:${m.parts[0].key}:${q}`, sc.total >= PURIFY_NEED ? 2 : 1); }
     return { own, lvlOk: m.lvl >= PURIFY_MIN_LVL, ok: win && !own && sc.total >= PURIFY_NEED && m.lvl >= PURIFY_MIN_LVL && st.broken >= 1 }; });
+  const rm = RARITY[node.rar || 0]?.drop || 1; if (win && rm > 1) for (const k in drops) drops[k] = Math.ceil(drops[k] * rm);
+  if (win && node.fid && save.field) save.field.cleared.push(node.fid);
   for (const k in drops) addMat(k, drops[k]);
   const xp = win ? 40 + node.lvl * 20 : 15 + node.lvl * 5 + st.broken * 5;
   save.hrXp += xp; let ranked = false; while (save.hrXp >= save.hr * 100) { save.hrXp -= save.hr * 100; save.hr++; ranked = true; }
   const compXp = win ? 30 : 12; save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) { c.xp = (c.xp || 0) + compXp; while (c.xp >= c.level * 60 && c.level < 10 + c.potential * 4) { c.xp -= c.level * 60; c.level++; } } });
   save.stats.hunts++; if (win) save.stats.wins++; else save.stats.fails++;
   for (const m of mons) { const cd = save.codex[m.sp] = save.codex[m.sp] || { seen: 0, won: 0, maxLvl: 0 }; cd.seen++; if (win) { cd.won++; cd.maxLvl = Math.max(cd.maxLvl, m.lvl); } }
-  save.nodes = null; persist();
+  persist();
   lastResult = { win, sc, need: PURIFY_NEED, canPurify: purInfo.some(x => x.ok), purInfo, drops, xp, ranked, mons: mons.map(m => ({ sp: m.sp, lvl: m.lvl })), st, purified: false };
   setTimeout(() => { teardown(); showResult(); }, 400);
 }
@@ -790,18 +792,37 @@ function genNodes() { const hr = save.hr, nodes = []; const sps = Object.keys(S_
   for (let i = 0; i < 4; i++) { const lvl = Math.max(1, hr + [-1, 0, 0, 1][i] + (i === 3 ? Math.floor(hr / 3) : 0)); const multi = lvl >= 3 && i === 3;
     const off = Math.floor(Math.random() * sps.length), mons = [{ sp: sps[(i + off) % sps.length], lvl }]; if (multi) mons.push({ sp: sps[(i + off + 1) % sps.length], lvl: Math.max(1, lvl - 1) }); nodes.push({ id: i, lvl, mons }); }
   return nodes; }
+// ── v5 필드: 지역 3곳 × 하루 단위 출현(+새로 찾기 3회), 몬스터 Lv·희귀도, 채집 포인트. DOM 지도라 3D 부하 없음
+const REGIONS = { meadow: { n: '바람 초원', sp: ['wolf', 'harpy', 'kitsune', 'drake'], bg: 'meadow' }, snow: { n: '서리 고원', sp: ['witch', 'drake', 'harpy', 'wolf'], bg: 'snow' }, coast: { n: '산호 해안', sp: ['siren', 'kitsune', 'witch', 'wolf'], bg: 'coast' } };
+const RARITY = [{ n: '일반', c: 'r0', lv: 0, drop: 1 }, { n: '희귀', c: 'r1', lv: 1, drop: 1.5 }, { n: '전설', c: 'r2', lv: 2, drop: 2 }];
+const GATHER = { meadow: ['약초 덤불', '광맥', '뼈 무더기'], snow: ['얼음 결정', '광맥', '서리꽃'], coast: ['조개 무더기', '산호초', '유목'] };
+const MAX_REFRESH = 3;
+function seeded(str) { let h = 1779033703 ^ str.length; for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; } return () => { h = Math.imul(h ^ h >>> 16, 2246822507); h = Math.imul(h ^ h >>> 13, 3266489909); return ((h ^= h >>> 16) >>> 0) / 4294967296; }; }
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+function fieldState() { const f = save.field; if (!f || f.day !== today()) save.field = { day: today(), region: f?.region || 'meadow', refresh: 0, cleared: [], gathered: [] }; return save.field; }
+function genField(reg) { const f = fieldState(), R = seeded(`${f.day}|${reg}|${f.refresh}`), hr = save.hr, out = [], pos = [[22, 24], [70, 20], [48, 46], [18, 66], [76, 62]];
+  for (let i = 0; i < 5; i++) { const rr = R(), rar = rr > 0.93 ? 2 : rr > 0.7 ? 1 : 0, sp = REGIONS[reg].sp[Math.floor(R() * 4)];
+    const lvl = Math.max(1, hr + [-1, 0, 0, 1, 1][i] + RARITY[rar].lv); const mons = [{ sp, lvl }]; if (rar === 2 && lvl >= 3) mons.push({ sp: REGIONS[reg].sp[(REGIONS[reg].sp.indexOf(sp) + 1) % 4], lvl: lvl - 1 });
+    out.push({ id: i, fid: `${reg}:${f.refresh}:${i}`, lvl, mons, rar, x: pos[i][0] + (R() * 8 - 4), y: pos[i][1] + (R() * 8 - 4) }); }
+  const gp = GATHER[reg].map((n, i) => ({ gid: `${reg}:${f.refresh}:g${i}`, n, x: [40, 86, 10][i], y: [80, 40, 40][i] }));
+  return { mons: out.filter(n => !f.cleared.includes(n.fid)), gp: gp.filter(g => !f.gathered.includes(g.gid)) }; }
+let fieldSel = null;
+function fieldBody(w, a) { const f = fieldState(), reg = f.region, F = genField(reg); save.nodes = F.mons;
+  const regs = Object.entries(REGIONS).map(([k, r]) => `<button class="btn sm ${reg === k ? '' : 'alt'}" data-freg="${k}">${r.n}</button>`).join('');
+  const mk = F.mons.map((n, i) => { const m = n.mons[0], S = S_[m.sp]; return `<button class="fmon ${RARITY[n.rar].c} ${fieldSel === i ? 'sel' : ''}" data-fmon="${i}" style="left:${n.x}%;top:${n.y}%"><img src="${spImg(m.sp)}" alt=""><span>Lv${n.lvl}${n.rar ? ' ' + '★'.repeat(n.rar) : ''}</span></button>`; }).join('');
+  const gp = F.gp.map(g => `<button class="fgath" data-fgath="${g.gid}" style="left:${g.x}%;top:${g.y}%">✦<span>${g.n}</span></button>`).join('');
+  const sel = fieldSel != null && F.mons[fieldSel]; let info = `<div class="finfo note">몬스터를 탭하면 사냥 정보가 떠요. ✦ 채집 포인트는 탭하면 소재를 얻어요. 출현은 매일 바뀌어요(새로 찾기 ${MAX_REFRESH - f.refresh}회 남음).</div>`;
+  if (sel) { const n = sel; info = `<div class="finfo"><div><b>${n.mons.map(m => `<span class="${ELEM[S_[m.sp].elem].c}">${S_[m.sp].name}</span> Lv${m.lvl}`).join(' + ')}</b><br><span class="tag ${RARITY[n.rar].c}">${RARITY[n.rar].n}${n.rar ? ' · 소재 ×' + RARITY[n.rar].drop : ''}</span><span class="tag">약점 ${n.mons.map(m => ELEM[S_[m.sp].weak].n).join('/')}</span>${n.mons.map(m => owned(m.sp) ? '<span class="tag">동료 보유</span>' : m.lvl >= PURIFY_MIN_LVL ? '<span class="tag pur">정화 가능 Lv</span>' : '<span class="tag">Lv1 정화 불가</span>').join('')}</div><button class="btn" data-fgo="${fieldSel}">사냥 시작</button></div>`; }
+  return `<div class="note">HR <b>${save.hr}</b> · ${save.hrXp}/${save.hr * 100} · ${WEAPON_TYPES[w.type].n}(${ELEM[w.elem].n}) +${w.lvl} · 방어 ${armorDef(a)}</div><div class="tabs">${regs}</div>
+    <div id="fieldMap" class="fmap ${REGIONS[reg].bg}">${gp}${mk}<div class="fme">🧭</div></div>${info}
+    <div class="row"><button class="btn alt sm ${f.refresh >= MAX_REFRESH ? 'dis' : ''}" data-act="reroll">새로 찾기</button><span class="note">조작: 드래그=이동 · 탭=공격 · 휙=회피 · 길게=${holdName(w.type)}</span></div>`; }
 function village() {
   clearIdle(); if (!G) idleScene(0, 0);
   if (!save.nodes) { save.nodes = genNodes(); persist(); }
   const w = weaponById(save.equip.weapon), a = armorById(save.equip.armor);
   const tabs = [['hunt', '사냥'], ['forge', '대장간'], ['party', '동료'], ['codex', '도감'], ['set', '설정']].map(([k, n]) => `<button class="btn sm ${tab === k ? '' : 'alt'}" data-tab="${k}">${n}</button>`).join('');
   let body = '';
-  if (tab === 'hunt') {
-    body = `<div class="note">헌터 랭크 <b>HR ${save.hr}</b> · 경험치 ${save.hrXp}/${save.hr * 100} · 장비: ${WEAPON_TYPES[w.type].n}(${ELEM[w.elem].n}) +${w.lvl} / 방어 ${armorDef(a)}</div><h2>필드 — 다음 사냥감 선택</h2>` +
-      save.nodes.map(n => `<div class="card"><img src="${spImg(n.mons[0].sp)}" alt=""><div class="t"><b>${n.mons.map(m => `<span class="${ELEM[S_[m.sp].elem].c}">${S_[m.sp].name}</span> Lv${m.lvl}`).join(' + ')}</b><br>
-      <span class="tag">약점 ${n.mons.map(m => ELEM[S_[m.sp].weak].n).join('/')}</span><span class="tag">소재 ${QUAL[qualOf(n.lvl)]}</span>${n.mons.length > 1 ? '<span class="tag">2마리 · 타겟 전환</span>' : ''}${n.mons.map(m => owned(m.sp) ? '<span class="tag">동료 보유</span>' : m.lvl >= PURIFY_MIN_LVL ? '<span class="tag pur">정화 가능 Lv</span>' : '<span class="tag">Lv1 정화 불가</span>').join('')}<br><span class="note">${n.mons.map(m => patterns({ sp: m.sp, lvl: m.lvl }).length).join('/')}가지 공격 패턴</span></div>
-      <button class="btn" data-hunt="${n.id}">출발</button></div>`).join('') +
-      `<div class="row"><button class="btn alt sm" data-act="reroll">사냥감 새로 찾기</button></div><p class="note"><b>조작(몬헌 나우식)</b>: 화면 어디든 <b>드래그=이동</b> · <b>탭=공격</b>(연타로 콤보) · <b>휙 밀기=그 방향으로 회피</b>(공격 중에도 끊고 회피) · <b>길게 누르기=무기 홀드 동작</b>(${holdName(w.type)}) · 오른쪽 아래 <b>특수기</b>는 게이지 100%에서 발동(무적). 몬스터가 <b>붉게 빛나면</b> 공격이 와요. 맞기 직전에 피하면 <b>완벽 회피 → 반격 찬스</b>.</p>`;
+  if (tab === 'hunt') { body = fieldBody(w, a);
   } else if (tab === 'forge') {
     const types = WEAPON_ORDER.map(t => `<button class="btn sm ${forgeType === t ? '' : 'alt'}" data-ftype="${t}">${WEAPON_TYPES[t].icon} ${WEAPON_TYPES[t].n}</button>`).join('');
     const WT = WEAPON_TYPES[forgeType];
@@ -901,7 +922,11 @@ uiEl.addEventListener('click', (e) => {
   if (d.cw) { const c = save.comps.find(x => x.id === d.cw); const opts = [null, ...save.weapons.map(w => w.id)]; c.weapon = opts[(opts.indexOf(c.weapon) + 1) % opts.length]; }
   if (d.tog) { save.settings[d.tog] = !save.settings[d.tog]; }
   if (d.q) { save.settings.quality = d.q; qRaised = false; delete save.qAuto; applyQuality(qualityFromSetting()); }
-  if (d.act === 'reroll') { save.nodes = genNodes(); }
+  if (d.act === 'reroll') { const f = fieldState(); if (f.refresh < MAX_REFRESH) { f.refresh++; fieldSel = null; } }
+  if (d.freg) { fieldState().region = d.freg; fieldSel = null; }
+  if (d.fmon !== undefined) { fieldSel = +d.fmon; }
+  if (d.fgo !== undefined) { const n = save.nodes[+d.fgo]; fieldSel = null; clearIdle(); startHunt(n); return; }
+  if (d.fgath) { const f = fieldState(); if (!f.gathered.includes(d.fgath)) { f.gathered.push(d.fgath); const sps = REGIONS[f.region].sp, sp = sps[Math.floor(Math.random() * 4)], q = save.hr >= 5 ? 2 : 1; addMat(`${sp}:hide:${q}`, 1 + (Math.random() < 0.4 ? 1 : 0)); if (Math.random() < 0.35) addMat(`${sp}:${S_[sp].parts[0].key}:${q}`, 1); banner('채집!', 700); sfx('brk'); } }
   if (d.act === 'village') { tab = 'hunt'; }
   if (d.act === 'ack') { delete save.notice; }
   if (d.ftype) { forgeType = d.ftype; }
@@ -919,5 +944,5 @@ uiEl.addEventListener('change', async (e) => {
 });
 addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
-window.HN = { damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
+window.HN = { startHuntForTest: (i = 0) => { village(); clearIdle(); startHunt(save.nodes[i]); }, damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
 village();
