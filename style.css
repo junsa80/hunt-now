@@ -185,3 +185,14 @@ h1{margin:4px 0 8px;font-size:24px}h2{font-size:18px;margin:14px 0 6px}
 /* v5.2 물약 · 피해 숫자 크기 */
 .rb.small.pot{right:100px;bottom:66px;font-size:12px;background:#2f7a4a}
 .dmg.big{font-size:30px;font-weight:900}.dmg.small{font-size:14px;opacity:.85}.dmg.heal{color:#7dff9a}
+/* v5.4 visual (GrokBot): title/intro art, hero portraits */
+#ui.op-art{background:linear-gradient(180deg,#0b0a1a33 0%,#0b0a1a66 38%,#0b0a1aee 72%),url(img/title_cover.webp) center top/cover no-repeat;align-items:flex-end;padding-bottom:calc(28px + env(safe-area-inset-bottom))}
+#ui.op-art .op{background:#120f26cc;border:1px solid #ffffff22;border-radius:18px;padding:18px 16px;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);box-shadow:0 8px 30px #0008}
+#ui.op-art .op h1{font-size:22px;text-shadow:0 2px 6px #000}#ui.op-art .op p{font-size:15px;opacity:1;color:#f4f1ff;text-shadow:0 1px 3px #000}#ui.op-art .note{font-size:13px;color:#e6e0ff}
+.op-logo{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:-4px}.op-logo b{font-size:34px;letter-spacing:2px;color:#ffe9a8;text-shadow:0 2px 0 #7a3a10,0 0 18px #ff9a3c99}.op-logo span{font-size:14px;color:#ffd6e6;letter-spacing:4px}
+.opdots i{box-shadow:0 0 0 1px #0006}
+.hface{object-fit:cover;width:56px;height:56px;border-width:3px;box-shadow:0 2px 8px #0007}
+.hero-c{background:#1c1838e6}
+#ui.op-art{background:linear-gradient(180deg,#0b0a1a00 0%,#0b0a1a22 45%,#0b0a1acc 80%),url(img/title_cover.webp) center top/cover no-repeat;flex-direction:column;justify-content:flex-end}
+#ui.op-art .op{margin-top:auto;width:100%}
+.fmon img{object-position:50% 30%;filter:brightness(1.25) saturate(1.15);background:#fff2}

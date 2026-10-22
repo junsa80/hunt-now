@@ -969,14 +969,14 @@ const heroOf = () => HEROES.find(h => h.id === save.hero) || HEROES[0];
 const hName = (t) => t.replaceAll('{h}', heroOf().name);
 let opIdx = 0, opReplay = false;
 function openingScreen() { const o = OPENING[opIdx];
-  ui(`<div class="op"><div class="opdots">${OPENING.map((_, i) => `<i class="${i === opIdx ? 'on' : ''}"></i>`).join('')}</div><h1>${o.t}</h1><p>${o.s}</p>
-    <div class="row"><button class="btn alt sm" data-op="skip">건너뛰기</button><button class="btn" data-op="next">${opIdx < OPENING.length - 1 ? '다음' : '시작하기'}</button></div></div>`, 'village gear op-wrap'); }
+  ui(`<div class="op">${opIdx === 0 ? '<div class="op-logo"><b>헌트 나우</b><span>정화의 사냥꾼</span></div>' : ''}<div class="opdots">${OPENING.map((_, i) => `<i class="${i === opIdx ? 'on' : ''}"></i>`).join('')}</div><h1>${o.t}</h1><p>${o.s}</p>
+    <div class="row"><button class="btn alt sm" data-op="skip">건너뛰기</button><button class="btn" data-op="next">${opIdx < OPENING.length - 1 ? '다음' : '시작하기'}</button></div></div>`, 'village gear op-wrap op-art'); }
 let heroSel = null;
 function heroScreen() { const h = HEROES.find(x => x.id === heroSel);
   ui(`<h1>주인공 선택</h1><p class="note">${save.stats.hunts ? '기존 기록은 그대로예요. 이야기를 함께할 사냥꾼을 한 번만 골라 주세요.' : '정화의 사냥꾼이 될 사람을 골라 주세요.'} 능력치 차이는 없어요.</p>
-    <div class="herolist">${HEROES.map(x => `<button class="hero-c ${heroSel === x.id ? 'on' : ''}" data-hero="${x.id}"><span class="hdot" style="background:#${x.look.hair.toString(16).padStart(6, '0')};border-color:#${x.look.cloth2.toString(16).padStart(6, '0')}"></span><span><b>${x.name}</b> <span class="note">${x.age}세 · ${x.tag}</span><br><span class="note">${x.motive}</span></span></button>`).join('')}</div>
+    <div class="herolist">${HEROES.map(x => `<button class="hero-c ${heroSel === x.id ? 'on' : ''}" data-hero="${x.id}"><img class="hdot hface" src="img/hero_${x.id}_face.webp" alt="${x.name} 초상" width="56" height="56" style="background:#${x.look.hair.toString(16).padStart(6, '0')};border-color:#${x.look.cloth2.toString(16).padStart(6, '0')}"><span><b>${x.name}</b> <span class="note">${x.age}세 · ${x.tag}</span><br><span class="note">${x.motive}</span></span></button>`).join('')}</div>
     <div class="finfo">${h ? `<span>"${h.line}"</span>` : '<span class="note">카드를 탭하면 한마디를 들을 수 있어요.</span>'}<button class="btn ${h ? '' : 'dis'}" data-act="heroOk">결정</button></div>`, 'village gear'); }
-function beatScreen(b) { ui(`<div class="op"><div class="note">메인 스토리 · HR ${b.hr}</div><h1>${b.t}</h1><p>${hName(b.s)}</p><div class="row"><button class="btn" data-beat="${b.hr}">확인</button></div></div>`, 'village gear op-wrap'); }
+function beatScreen(b) { ui(`<div class="op"><div class="note">메인 스토리 · HR ${b.hr}</div><h1>${b.t}</h1><p>${hName(b.s)}</p><div class="row"><button class="btn" data-beat="${b.hr}">확인</button></div></div>`, 'village gear op-wrap op-art'); }
 function noteScreen(sp) { const S = S_[sp], cd = codexOf(sp), mv = [...PATTERNS[sp].map(x => x), ['spin', 1]];
   const row = ([k, l, c]) => { const I = MOVE_INFO[k], seen = cd.moves[k]; return `<li>${seen ? `<b>${I[0]}</b>${SIG[sp] === k ? ' ⭐서명' : ''}${c === 'rage' ? ' (분노)' : c === 'low' ? ' (빈사)' : l > 1 ? ` (Lv${l}+)` : ''} — 예고: ${I[1]} · 공략: ${I[2]}${cd.hitBy[k] ? ` · 맞은 횟수 ${cd.hitBy[k]}` : ''}` : `??? ${l > 1 ? `(Lv${l}+)` : c ? '(특수 조건)' : ''} — 아직 못 본 기술`}</li>`; };
   ui(`<h1>📓 ${S.short} 사냥 노트</h1><div class="storytext"><ul class="note" style="padding-left:16px;margin:0">${mv.map(row).join('')}</ul>
