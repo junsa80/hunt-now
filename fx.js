@@ -22,6 +22,9 @@ const xTex = canvasTex(64, 64, (g) => { g.strokeStyle = '#fff'; g.lineCap = 'rou
 const trailTex = canvasTex(256, 32, (g, w, h) => { const a = g.createLinearGradient(0, 0, w, 0); a.addColorStop(0, 'rgba(255,255,255,0)'); a.addColorStop(0.7, 'rgba(255,255,255,0.55)'); a.addColorStop(1, 'rgba(255,255,255,1)'); g.fillStyle = a; g.fillRect(0, 0, w, h);
   g.globalCompositeOperation = 'destination-in'; const b = g.createLinearGradient(0, 0, 0, h); b.addColorStop(0, 'rgba(0,0,0,0)'); b.addColorStop(0.55, 'rgba(0,0,0,0.6)'); b.addColorStop(0.92, 'rgba(0,0,0,1)'); b.addColorStop(1, 'rgba(0,0,0,0.2)'); g.fillStyle = b; g.fillRect(0, 0, w, h); });
 trailTex.colorSpace = THREE.NoColorSpace;
+// v5.5: 타격 줄기(가늘고 긴 섬광)와 공격 예고 '!' 표시
+const streakTex = canvasTex(256, 32, (g, w, h) => { const a = g.createLinearGradient(0, 0, w, 0); a.addColorStop(0, 'rgba(255,255,255,0)'); a.addColorStop(0.5, 'rgba(255,255,255,1)'); a.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = a; g.beginPath(); g.moveTo(0, h / 2); g.quadraticCurveTo(w / 2, -2, w, h / 2); g.quadraticCurveTo(w / 2, h + 2, 0, h / 2); g.fill(); });
+export const warnTex = canvasTex(128, 128, (g) => { g.fillStyle = '#ff3b2f'; g.strokeStyle = '#fff'; g.lineWidth = 8; g.beginPath(); g.moveTo(64, 10); g.lineTo(120, 112); g.lineTo(8, 112); g.closePath(); g.fill(); g.stroke(); g.fillStyle = '#fff'; g.font = 'bold 70px sans-serif'; g.textAlign = 'center'; g.fillText('!', 64, 100); });
 
 export function createFx(scene, camera) {
   const live = [];
@@ -46,13 +49,15 @@ export function createFx(scene, camera) {
     const grp = new THREE.Group(); grp.position.copy(ent.pos); grp.position.y = o.y ?? 1.0; grp.rotation.order = 'YXZ'; grp.rotation.y = ent.face; grp.rotation.z = o.tilt || 0; grp.rotation.x = o.pitch || 0; grp.add(m); scene.add(grp);
     live.push({ o: grp, t: 0, d: o.dur || 0.24, trail: m, seg });
   }
+  function slash(pos, color = 0xffffff, heavy = false) { const n = heavy ? 3 : 2, a0 = rnd(0, Math.PI);
+    for (let i = 0; i < n; i++) { const st = spr(streakTex, i ? color : 0xffffff); st.position.copy(pos); st.material.rotation = a0 + (i - (n - 1) / 2) * 0.5 + rnd(-0.15, 0.15); live.push({ o: st, t: 0, d: heavy ? 0.2 : 0.14, s0: 0.4, s1: (heavy ? 4.2 : 2.8) * (1 - i * 0.18), streak: true }); } }
   function update(dt) {
     for (let i = live.length - 1; i >= 0; i--) { const L = live[i]; L.t += dt; const k = Math.min(1, L.t / L.d);
       if (L.trail) { const g = L.trail.geometry; g.setDrawRange(0, Math.ceil(Math.min(1, k * 2.6) * L.seg) * 6); L.trail.material.opacity = k < 0.4 ? 1 : 1 - (k - 0.4) / 0.6; }
-      else { const e = 1 - Math.pow(1 - k, 3), s = L.s0 + (L.s1 - L.s0) * e; L.o.scale.set(s, L.mesh ? 1 : s, s); L.o.material.opacity = L.hold ? (k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4) : 1 - k; if (L.mesh) L.o.scale.y = 1; }
+      else { const e = 1 - Math.pow(1 - k, 3), s = L.s0 + (L.s1 - L.s0) * e; if (L.streak) L.o.scale.set(s, s * 0.16 * (1 - k * 0.6), 1); else L.o.scale.set(s, L.mesh ? 1 : s, s); L.o.material.opacity = L.hold ? (k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4) : 1 - k; if (L.mesh) L.o.scale.y = 1; }
       if (k >= 1) { scene.remove(L.o); L.o.traverse(x => { if (x.isMesh || x.isSprite) { if (x.geometry && x.geometry !== shockGeo && !x.isSprite) x.geometry.dispose(); x.material.dispose(); } }); live.splice(i, 1); } }
   }
-  return { impact, shock, trail, update, get count() { return live.length; } };
+  return { impact, shock, trail, slash, update, get count() { return live.length; } };
 }
 
 // ── 환경: 하늘 돔, 언덕, 2단 나무, 풀숲, 꽃, 바위, 부유 꽃가루
