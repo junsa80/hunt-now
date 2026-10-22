@@ -86,3 +86,9 @@
 - 경험치: 승리 경험치(40+Lv×20)의 10~30% = 0.1+0.2×가한 피해 비율(`FAIL_SHARE`). 동료 경험치도 같은 비율(30×share). 정화는 승리 시에만.
 - 실패 결과 화면 간소화: "사냥 실패 (시간 초과)" · "획득: 소재 ×1 (부위 파괴)" · 경험치(피해%→보상%) · 한 화면.
 - 테스트: `test/v53.js` 12/12 (헤드리스 390x844, 실제 폰 아님). SW `hunt-now-v5.3`.
+
+## v5.4 첫 화면 그림 (브랜치 grokbot/hunt-visual, GrokBot, 2026-10-22)
+- 이유: 게임 선택기 표지(일러스트)와 실제 첫 화면(어두운 글자·색 동그라미) 차이가 가장 컸음.
+- 변경: openingScreen 첫 장에 로고, 인트로·beatScreen에 `op-art` 클래스(표지 배경 + 패널). heroScreen `hdot` → `<img class="hdot hface">` (img/hero_{id}_face.webp). `.fmon img` 밝기.
+- 자산 기록: img/title_cover.webp(게임 선택기 표지 재사용), img/hero_{aria,hana,rin}_face.webp(생성 이미지, 192px). 노출·선정적 요소 없음. 아리아 첫 생성본은 목선이 깊어 버리고 높은 깃 버전으로 다시 만듦.
+- 남은 일: 늑대 아이콘 원본(enemy_wolf.webp)이 어두움. 마을 화면 일부 글자 10px. 실제 폰 미확인.
