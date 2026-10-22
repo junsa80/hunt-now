@@ -92,3 +92,8 @@
 - 변경: openingScreen 첫 장에 로고, 인트로·beatScreen에 `op-art` 클래스(표지 배경 + 패널). heroScreen `hdot` → `<img class="hdot hface">` (img/hero_{id}_face.webp). `.fmon img` 밝기.
 - 자산 기록: img/title_cover.webp(게임 선택기 표지 재사용), img/hero_{aria,hana,rin}_face.webp(생성 이미지, 192px). 노출·선정적 요소 없음. 아리아 첫 생성본은 목선이 깊어 버리고 높은 깃 버전으로 다시 만듦.
 - 남은 일: 늑대 아이콘 원본(enemy_wolf.webp)이 어두움. 마을 화면 일부 글자 10px. 실제 폰 미확인.
+
+## v5.5 전투 화면 (브랜치 grokbot/hunt-visual2, GrokBot, 2026-10-22)
+- makeTele: glow 테두리 메시(가산 혼합) + setTeleP 맥동. warnMark/hideWarn(머리 위 '!' 스프라이트, teardown에서 제거). fx.slash(타격 줄기). G.punch → updCamera FOV 펀치(shake 설정 따름). 필드 아이콘 beastImg.
+- 자산 기록: 새 이미지 파일 없음(캔버스 텍스처 streakTex·warnTex). 동료 모델은 바꾸지 않음(기존 옷 그대로).
+- 헤드리스 swiftshader FPS 표본: 전 19 / 후 24 (소프트웨어 렌더라 실제 폰 수치 아님). 남은 일: 실제 폰 성능·가독성 확인, 마을 상단 3D 배경 대비.
