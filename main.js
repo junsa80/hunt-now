@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.js';
 import { buildGirl, animate, setWeapon, toon, ownOutline, ATK_STYLE, bodyPart, GEO } from './chars.js';
 import { buildBeast, animateBeast } from './beasts.js';
-import { createFx, buildEnv, RIM } from './fx.js';
+import { createFx, buildEnv, RIM, warnTex } from './fx.js';
 import { LORE, OPENING, HEROES, BEATS, PURIFY_SCENE, PURIFY_FAIL } from './lore.js';
 import { NICHE, MODS, MOD_KEYS, teamFx, rosterFx, xpMul, ROSTER } from './synergy.js';
 import { MENTOR, FADE_N, TECH_T1, HUNTER_ONLY, TECH_STEPS, mentorPassive, mentorTier } from './mentor.js';
@@ -132,14 +132,22 @@ function makeTele(sh, dur) {
   else if (sh.type === 'line') { geo = new THREE.PlaneGeometry(sh.w, sh.len).translate(0, sh.len / 2, 0); fillGeo = geo; }
   else { geo = new THREE.RingGeometry(sh.r, sh.r2, 48); fillGeo = geo; }
   geo = geo.clone().rotateX(Math.PI / 2);
-  const base = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xff2040, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
-  const fill = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xff4020, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false }));
-  const edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0xffd0d0 }));
-  fill.position.y = 0.005; grp.add(base, fill, edge); scene.add(grp);
-  const t = { sh, grp, fill, t: 0, dur }; telegraphs.push(t); setTeleP(t, 0); return t;
+  const base = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xff2a3a, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
+  const fill = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xff5a1a, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
+  const edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0xfff2e0 }));
+  // v5.5: 두꺼운 빛나는 테두리(원·고리·부채꼴). 맥동해서 풀밭 위에서도 잘 보이게
+  let glowGeo = null; const GW = 0.18;
+  if (sh.type === 'circle') glowGeo = new THREE.RingGeometry(Math.max(0.01, sh.r - GW), sh.r, 48);
+  else if (sh.type === 'cone') glowGeo = new THREE.RingGeometry(Math.max(0.01, sh.r - GW), sh.r, 24, 1, Math.PI / 2 - sh.ang / 2, sh.ang);
+  else if (sh.type === 'ring') glowGeo = new THREE.RingGeometry(sh.r2 - GW, sh.r2, 48);
+  else glowGeo = new THREE.PlaneGeometry(sh.w + GW * 2, GW).translate(0, sh.len, 0);
+  const glow = new THREE.Mesh(glowGeo.rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffe2b0, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+  fill.position.y = 0.005; glow.position.y = 0.012; grp.add(base, fill, edge, glow); scene.add(grp);
+  const t = { sh, grp, fill, base, glow, t: 0, dur }; telegraphs.push(t); setTeleP(t, 0); return t;
 }
 function setTeleP(t, p) { const k = Math.max(0.02, p), ty = t.sh.type; if (ty === 'line') t.fill.scale.set(1, 1, k); else if (ty === 'ring') { t.fill.scale.setScalar(1); t.fill.material.opacity = 0.15 + 0.5 * p; } else t.fill.scale.set(k, 1, k);
-  t.fill.material.color.setHex(p > 0.85 ? 0xffe040 : 0xff4020); }
+  t.fill.material.color.setHex(p > 0.85 ? 0xffe040 : 0xff5a1a);
+  const pulse = 0.5 + 0.5 * Math.sin(performance.now() * (p > 0.7 ? 0.03 : 0.014)); if (t.glow) { t.glow.material.opacity = 0.55 + 0.45 * pulse; t.glow.material.color.setHex(p > 0.85 ? 0xffffff : 0xffc890); } if (t.base) t.base.material.opacity = 0.24 + 0.12 * pulse; }
 function killTele(t) { scene.remove(t.grp); t.grp.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); }); telegraphs.splice(telegraphs.indexOf(t), 1); }
 function inShape(sh, x, z, rad = 0.35) {
   const dx = x - sh.x, dz = z - sh.z, d = Math.hypot(dx, dz);
@@ -369,6 +377,7 @@ function damageMonster(m, base, src, opt = {}) {
   popNum(opt.at || m.pos, String(dmg), (cls + (src.isPlayer && dmg >= (src.atk || 10) * 2.2 ? ' big' : src.isPlayer && dmg < (src.atk || 10) * 0.9 ? ' small' : '')).trim()); // 피해 크기만큼 숫자 크기
   const hp = (opt.at || m.pos.clone().setY(1.1 * m.S.scale)), w = src.isPlayer ? WEIGHT[src.wtype] || 1 : 0.5;
   burst(hp, src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xfff2c0, opt.heavy ? 18 : 8, opt.heavy ? 7 : 4);
+  if (src.isPlayer) { fx.slash(hp, src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xfff0c0, !!(opt.heavy || opt.crit)); if (opt.heavy || opt.crit) G.punch = Math.max(G.punch || 0, opt.crit ? 0.16 : 0.12); }
   if (src.isPlayer && qLevel > 0) hitGlow(hp, opt.crit ? 0x9ff8ff : src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xffe0a0, opt.heavy || opt.crit ? 1.6 : 1);
   if (src.isPlayer) { fx.impact(hp, opt.crit ? 0x9ff8ff : src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xfff0c0, (0.7 + 0.45 * w) * (opt.heavy ? 1.35 : 1), wpt); if (wpt) sfx('weak'); }
   // 포이즈: 공격 중(예비 동작·타격)엔 슈퍼아머 — 가벼운 타격엔 움찔하지 않음. 누적 피해가 문턱을 넘거나, 돌진 예비 동작 중 머리를 맞으면 끊김
@@ -408,7 +417,12 @@ function breakFx(m, p) { const at = anchorWorld(m, p); fx.impact(at, 0xffd24a, 2
   const u = m.model.userData; if (p.anchor === 'horn1' && u['horn-1']) { u['horn-1'].material = toon(0x8a7a6a); } }
 function killMonster(m) { m.ai = 'down'; m.aiT = 0; m.state = 'down'; m.st = 0; clearMonsterTele(m); say(m.S.lines.win, m.S.short); banner('토벌!'); sfx('win'); G.hitstop = 0.2; G.slowmo = 0.6;
   if (G.lock === m) G.lock = nearestMonster(G.player.pos); if (G.monsters.every(x => !alive(x))) { const g = G; setTimeout(() => G === g && endHunt(true), 1800); } }
-function clearMonsterTele(m) { if (m.cur) { m.cur.teles.forEach(killTele); m.cur = null; } }
+// v5.5: 큰 기술 예고 — 머리 위 '!' (깜빡임, 발사 직전 커짐)
+function warnMark(m, c) { if (!m.warn) { m.warn = new THREE.Sprite(new THREE.SpriteMaterial({ map: warnTex, transparent: true, depthTest: false, depthWrite: false })); m.warn.renderOrder = 30; scene.add(m.warn); }
+  const l = c.list.find(x => !x.fired), p = l ? clamp((c.t - l.delay) / l.dur, 0, 1) : 1, s = (BIG.has(c.kind) ? 1.25 : 0.9) * (1 + 0.35 * p);
+  m.warn.visible = !!l && (p < 0.75 || Math.sin(c.t * 30) > -0.3); m.warn.position.set(m.pos.x, (2.2 + 0.4 * (m.S.scale || 1)) * MSCALE, m.pos.z); m.warn.scale.set(s, s, 1); }
+function hideWarn(m) { if (m.warn) m.warn.visible = false; }
+function clearMonsterTele(m) { hideWarn(m); if (m.cur) { m.cur.teles.forEach(killTele); m.cur = null; } }
 function hurt(e, raw, el, from, big = false) {
   if (!alive(e) || G.over) return;
   if (e.isPlayer && e.iframe > 0) { // 회피 성공
@@ -700,12 +714,12 @@ function updMonster(m, dt) {
       if (Math.abs(diff) > 0.55) { m.turnWait = (m.turnWait || 0) + 0.05; if (m.turnWait > 1.0) { m.turnWait = 0; beginAttack(m, m.enraged ? 'tail2' : 'spin'); return; } m.atkCd = 0.05; return; } m.turnWait = 0; // 정면을 맞출 때까지 돌기만 함
       const P = patterns(m).filter(k => k !== m.lastK || Math.random() < 0.25); const near = d < 4 * MSCALE; let k = P[Math.floor(Math.random() * P.length)] || patterns(m)[0];
       if (near && m.sp === 'wolf' && Math.random() < 0.5) k = 'bite'; if (!near && m.sp === 'drake' && Math.random() < 0.6) k = 'leap'; if (!near && m.sp === 'harpy' && Math.random() < 0.5) k = 'dive'; beginAttack(m, k); } return; }
-  if (m.ai === 'windup') { const c = m.cur; c.t += dt * sMul; m.state = 'windup'; m.run = 0;
+  if (m.ai === 'windup') { const c = m.cur; c.t += dt * sMul; m.state = 'windup'; m.run = 0; warnMark(m, c);
     for (const l of c.list) { if (!l.tele && c.t >= l.delay) { l.tele = makeTele(l.sh, l.dur); c.teles.push(l.tele); }
       if (l.tele && !l.fired) { const p = (c.t - l.delay) / l.dur; setTeleP(l.tele, clamp(p, 0, 1)); if (p >= 1 && l.hold && l.tele.fill) l.tele.fill.visible = Math.sin(c.t * 40) > 0; if (p >= 1 + (l.hold || 0) / l.dur) { l.fired = true; fireShape(m, l.sh, c); killTele(l.tele); c.teles.splice(c.teles.indexOf(l.tele), 1); } } }
     if (c.after?.back && c.t < 0.5) m.pos.addScaledVector(c.after.back, dt * 2);
     if (c.after?.leap) { const p = clamp(c.t / c.list[0].dur, 0, 1); if (p > 0.55) { m.pos.lerp(c.after.leap, Math.min(1, dt * 7)); m.model.position.y = Math.sin((p - 0.55) / 0.45 * Math.PI) * 2.5; } }
-    if (c.list.every(l => l.fired)) { m.model.position.y = 0; m.ai = 'strike'; m.aiT = 0.35; m.state = 'strike'; if (c.after?.dash) { m.dashLeft = c.after.dash; } } return; }
+    if (c.list.every(l => l.fired)) { hideWarn(m); m.model.position.y = 0; m.ai = 'strike'; m.aiT = 0.35; m.state = 'strike'; if (c.after?.dash) { m.dashLeft = c.after.dash; } } return; }
   if (m.ai === 'strike') { m.aiT -= dt; if (m.dashLeft > 0) { const s = Math.min(m.dashLeft, 32 * dt); m.pos.addScaledVector(fwd(m.face), s); m.dashLeft -= s; m.state = 'run'; m.run = 1; }
     if (m.aiT <= 0) { const big = BIG.has(m.cur?.kind); m.ai = 'recover'; m.aiT = (big ? 1.9 : Math.max(0.7, 1.3 - 0.06 * m.lvl)) * (m.enraged ? 0.8 : 1) * (m.weakened ? 1.3 : 1); m.bigOpen = big; m.dashLeft = 0; m.cur = null; if (big) popNum(m.pos, '빈틈!', 'info'); } return; }
   if (m.ai === 'recover') { m.state = m.bigOpen ? 'stun' : 'idle'; m.run = 0; m.aiT -= dt; if (m.aiT <= 0) { m.bigOpen = false; m.ai = 'move'; m.atkCd = rnd(0.25, 0.8) * Math.max(0.5, 1 - 0.07 * m.lvl) * (m.enraged ? 0.7 : 1); } }
@@ -769,6 +783,7 @@ function updCamera(dt) {
   G.camPos.lerp(_cv, Math.min(1, dt * 5)); G.camPos.y = Math.max(1.6, G.camPos.y); camera.position.copy(G.camPos);
   if (L) _lk.copy(p.pos).lerp(L.pos, port ? 0.62 : 0.55).setY(0.9 + L.S.scale * MSCALE * (port ? 0.55 : 0.45)); else _lk.copy(p.pos).addScaledVector(fwd(p.face), 2).setY(1.2);
   G.camLook = G.camLook || _lk.clone(); G.camLook.lerp(_lk, Math.min(1, dt * 6)); camera.lookAt(G.camLook);
+  { const baseFov = innerWidth < innerHeight ? 62 : 50, pk = G.punch > 0 ? G.punch : 0; if (pk > 0) G.punch = Math.max(0, G.punch - dt); const f = baseFov - (save.settings.shake ? 28 * pk : 0); if (Math.abs(camera.fov - f) > 0.01) { camera.fov = f; camera.updateProjectionMatrix(); } } // v5.5 강타 줌 펀치
   if (G.shake > 0 && save.settings.shake) { const k = G.shake * G.shake, t = G.t * 60; camera.rotateZ(Math.sin(t * 1.3) * 0.012 * k); camera.rotateX(Math.sin(t * 1.7 + 1) * 0.02 * k); camera.translateX(Math.sin(t * 2.1) * 0.12 * k); }
   sun.position.set(p.pos.x + 6, 14, p.pos.z + 5); sun.target.position.set(p.pos.x, 0, p.pos.z); // 그림자는 헌터 주변만 (저렴)
 }
@@ -893,7 +908,7 @@ function endHunt(win) {
   lastResult = { win, sc, need: PURIFY_NEED, canPurify: purInfo.some(x => x.ok), purInfo, drops, xp, ranked, mons: mons.map(m => ({ sp: m.sp, lvl: m.lvl })), st, purified: false, tip, noHit, clean, share, dmgR: dmgAll, timeout: !win && G.time <= 0 };
   setTimeout(() => { teardown(); showResult(); }, 400);
 }
-function teardown() { if (!G) return; clearArrows(); touches.clear(); input.mx = input.mz = 0; input.dodgeBuf = null; input.tapBuf = -9; $('stick').style.opacity = 0; [...G.allies, ...G.monsters].forEach(e => scene.remove(e.model)); [...telegraphs].forEach(killTele); G = null; $('hud').classList.add('hidden'); lockMark.visible = weakMark.visible = false; setRing(0); input.atkDown = false; }
+function teardown() { if (!G) return; G.monsters.forEach(m => { if (m.warn) { scene.remove(m.warn); m.warn.material.dispose(); m.warn = null; } }); clearArrows(); touches.clear(); input.mx = input.mz = 0; input.dodgeBuf = null; input.tapBuf = -9; $('stick').style.opacity = 0; [...G.allies, ...G.monsters].forEach(e => scene.remove(e.model)); [...telegraphs].forEach(killTele); G = null; $('hud').classList.add('hidden'); lockMark.visible = weakMark.visible = false; setRing(0); input.atkDown = false; }
 
 // ───────── UI 화면 ─────────
 const uiEl = $('ui');
@@ -958,7 +973,7 @@ function advHint(n) { const m = n.mons[0], weak = S_[m.sp].weak; const adv = sav
   return `<span class="note hint">${ELICON[weak]} 유리: ${adv.length ? adv.join(', ') : '없음'}${rec.length ? ` · 추천: ${recN.join(', ')}` : ''}</span>`; }
 function fieldBody(w, a) { const f = fieldState(), reg = f.region, F = genField(reg); save.nodes = F.mons;
   const regs = Object.entries(REGIONS).map(([k, r]) => `<button class="btn sm ${reg === k ? '' : 'alt'}" data-freg="${k}">${r.n}</button>`).join('');
-  const mk = F.mons.map((n, i) => { const m = n.mons[0], S = S_[m.sp]; return `<button class="fmon ${RARITY[n.rar].c} ${fieldSel === i ? 'sel' : ''}" data-fmon="${i}" style="left:${n.x}%;top:${n.y}%"><img src="${spImg(m.sp)}" alt=""><span>Lv${n.lvl}${n.rar ? ' ' + '★'.repeat(n.rar) : ''}${n.mod ? MODS[n.mod].icon : ''}${save.comps.some(c => save.party.includes(c.id) && S_[c.species].elem === S_[m.sp].weak) ? ELICON[S_[m.sp].weak] : ''}</span></button>`; }).join('');
+  const mk = F.mons.map((n, i) => { const m = n.mons[0], S = S_[m.sp]; return `<button class="fmon ${RARITY[n.rar].c} ${fieldSel === i ? 'sel' : ''}" data-fmon="${i}" style="left:${n.x}%;top:${n.y}%"><img src="${beastImg(m.sp)}" alt=""><span>Lv${n.lvl}${n.rar ? ' ' + '★'.repeat(n.rar) : ''}${n.mod ? MODS[n.mod].icon : ''}${save.comps.some(c => save.party.includes(c.id) && S_[c.species].elem === S_[m.sp].weak) ? ELICON[S_[m.sp].weak] : ''}</span></button>`; }).join('');
   const gp = F.gp.map(g => `<button class="fgath" data-fgath="${g.gid}" style="left:${g.x}%;top:${g.y}%">✦<span>${g.n}</span></button>`).join('');
   const sel = fieldSel != null && F.mons[fieldSel]; let info = `<div class="finfo note">몬스터를 탭하면 사냥 정보가 떠요. ✦ 채집 포인트는 탭하면 소재를 얻어요. 출현은 매일 바뀌어요(새로 찾기 ${MAX_REFRESH - f.refresh}회 남음).</div>`;
   if (sel) { const n = sel; info = `<div class="finfo"><div><b>${n.mons.map(m => `<span class="${ELEM[S_[m.sp].elem].c}">${S_[m.sp].name}</span> Lv${m.lvl}`).join(' + ')}</b><br><span class="tag ${RARITY[n.rar].c}">${RARITY[n.rar].n}${n.rar ? ' · 소재 ×' + RARITY[n.rar].drop : ''}</span><span class="tag">약점 ${n.mons.map(m => ELEM[S_[m.sp].weak].n).join('/')}</span>${n.mod ? `<span class="tag r2">${MODS[n.mod].icon} ${MODS[n.mod].n}: ${MODS[n.mod].d}</span>` : ''}${n.mons.map(m => owned(m.sp) ? '<span class="tag">동료 보유</span>' : m.lvl >= PURIFY_MIN_LVL ? '<span class="tag pur">정화 가능 Lv</span>' : '<span class="tag">Lv1 정화 불가</span>').join('')}</div>${advHint(n)}<button class="btn" data-fgo="${fieldSel}">사냥 시작</button></div>`; }

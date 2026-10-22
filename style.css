@@ -196,3 +196,7 @@ h1{margin:4px 0 8px;font-size:24px}h2{font-size:18px;margin:14px 0 6px}
 #ui.op-art{background:linear-gradient(180deg,#0b0a1a00 0%,#0b0a1a22 45%,#0b0a1acc 80%),url(img/title_cover.webp) center top/cover no-repeat;flex-direction:column;justify-content:flex-end}
 #ui.op-art .op{margin-top:auto;width:100%}
 .fmon img{object-position:50% 30%;filter:brightness(1.25) saturate(1.15);background:#fff2}
+/* v5.5 visual (GrokBot): 채집 이름 12px, 선택 정보 한 화면 */
+.fgath span{font-size:12px;padding:1px 6px;top:39px}
+.finfo .btn{white-space:nowrap}
+.fmap{height:min(36vh,300px)}
