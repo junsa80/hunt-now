@@ -116,6 +116,11 @@
 - 올린 그림: img/title_cover.webp(57KB, 게임 선택기 thumbs/hunt-now.webp 재사용), img/hero_aria_face.webp(8.6KB), img/hero_hana_face.webp(7.9KB), img/hero_rin_face.webp(6.2KB). 초상은 Grok Bot 이미지 생성 → 192px 잘라 webp.
 - SW hunt-now-v5.4. 테스트 v53 12/12, v52 12/12, v51 12/12, v5 31/31, touch-v2 41/41, feel-v4 23/23 (헤드리스 390x844, 실제 폰 아님).
 
+### v5.7 (2026-10-23) — 정화 동료 사람형 2D 초상
+- 6종 `img/comp_{wolf,witch,drake,siren,kitsune,harpy}.webp` (216×288, 성인·옷 갖춤·하이칼라, hero_aria_face·표지 톤). `data.js` `human` 필드. `compImg`가 2D 우선.
+- 동료 목록·장비·이야기·사냥 HUD·정화 결과에서 3D 스냅 대신 2D. 짐승형 `img` 유지.
+- 동료 6명 탭이 390×844에 다시 맞춤(알림·시너지 높이 제한, 버튼 12px). SW `hunt-now-v5.7`.
+
 ### v5.6 (2026-10-23) — 몬스터 아이콘·동료 HUD
 - 짐승형 아이콘 4종 추가: `img/enemy_witch.webp`(서리 와이번), `enemy_siren.webp`(바다뱀), `enemy_kitsune.webp`(여우불 여우), `enemy_harpy.webp`(폭풍 그리핀). 기존 wolf·drake와 같은 540×960 webp. 사람 없음.
 - 사냥터 필드 아이콘이 3D 스냅 대신 `SPECIES.img`를 씀. 도감·결과 화면은 기존 `spImg`로 새 그림 사용.
