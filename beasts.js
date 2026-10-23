@@ -12,7 +12,7 @@ const SHAPE = {
 };
 export function buildBeast(sp, look, scale = 1) {
   const S = SHAPE[sp], root = new THREE.Group(), body = new THREE.Group(); root.add(body);
-  const mB = toon(look.cloth2), mH = toon(look.hair), mA = toon(look.accent), mD = toon(look.cloth), mHorn = toon(look.horns ?? look.accent);
+  const em = look.accent || look.cloth2; const mB = toon(look.cloth2, em), mH = toon(look.hair), mA = toon(look.accent, look.accent), mD = toon(look.cloth), mHorn = toon(look.horns ?? look.accent, look.accent);
   const hips = new THREE.Group(); hips.position.set(0, S.h, -S.len * 0.32); body.add(hips);
   const torso = new THREE.Group(); torso.position.set(0, S.h + 0.05, S.len * 0.18); body.add(torso);
   part(hips, G.sph, mB, 0.42, 0.4, 0.5); part(torso, G.sph, mB, 0.48, 0.48, 0.58, 0, 0.02, 0); part(torso, G.sph, mD, 0.36, 0.3, 0.5, 0, -0.18, 0.05); // 몸통 2분절 + 배

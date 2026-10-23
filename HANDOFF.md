@@ -1,6 +1,6 @@
 # HANDOFF: 헌트 나우 (다른 AI가 이어서 작업하기 위한 메모)
 
-마지막 갱신: 2026-10-21 · 현재 버전: v5 (저장 형식 v4, SW hunt-now-v5)
+마지막 갱신: 2026-10-23 · 현재 버전: v5.6 (저장 형식 v4, SW hunt-now-v5.6)
 플레이: https://junsa80.github.io/hunt-now/ · 저장소: https://github.com/junsa80/hunt-now
 
 ## 원칙 (사용자 규칙)
@@ -97,3 +97,8 @@
 - makeTele: glow 테두리 메시(가산 혼합) + setTeleP 맥동. warnMark/hideWarn(머리 위 '!' 스프라이트, teardown에서 제거). fx.slash(타격 줄기). G.punch → updCamera FOV 펀치(shake 설정 따름). 필드 아이콘 beastImg.
 - 자산 기록: 새 이미지 파일 없음(캔버스 텍스처 streakTex·warnTex). 동료 모델은 바꾸지 않음(기존 옷 그대로).
 - 헤드리스 swiftshader FPS 표본: 전 19 / 후 24 (소프트웨어 렌더라 실제 폰 수치 아님). 남은 일: 실제 폰 성능·가독성 확인, 마을 상단 3D 배경 대비.
+
+
+## v5.6 (브랜치 grokbot/update-1023, 2026-10-23)
+- 짐승형 아이콘 4종(witch/siren/kitsune/harpy) + 필드가 SPECIES.img 사용. 사냥 동료 HUD 얼굴. 짐승 emissive.
+- ART_PROMPTS의 사람형 초상은 아직 3D 스냅(다음 할 일). 헤드리스만, 실제 폰 미확인.

@@ -200,3 +200,9 @@ h1{margin:4px 0 8px;font-size:24px}h2{font-size:18px;margin:14px 0 6px}
 .fgath span{font-size:12px;padding:1px 6px;top:39px}
 .finfo .btn{white-space:nowrap}
 .fmap{height:min(36vh,300px)}
+/* v5.6 (GrokBot): companion faces on hunt party HUD; field beast icons use full species art */
+#party div.phud{display:flex;align-items:center;gap:6px;width:150px;padding:3px 6px 3px 3px;font-size:12px}
+#party .pface{width:28px;height:28px;border-radius:50%;object-fit:cover;object-position:50% 20%;background:#1a2030;flex:0 0 auto;border:1px solid #ffffff44}
+#party .phud>span{flex:1;min-width:0;line-height:1.2}
+#party .phud .tag{font-size:10px}
+.fmon img{object-fit:cover;object-position:50% 35%;border-radius:8px;box-shadow:0 0 0 1px #fff3,0 2px 8px #0008}

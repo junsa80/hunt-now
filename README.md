@@ -116,6 +116,12 @@
 - 올린 그림: img/title_cover.webp(57KB, 게임 선택기 thumbs/hunt-now.webp 재사용), img/hero_aria_face.webp(8.6KB), img/hero_hana_face.webp(7.9KB), img/hero_rin_face.webp(6.2KB). 초상은 Grok Bot 이미지 생성 → 192px 잘라 webp.
 - SW hunt-now-v5.4. 테스트 v53 12/12, v52 12/12, v51 12/12, v5 31/31, touch-v2 41/41, feel-v4 23/23 (헤드리스 390x844, 실제 폰 아님).
 
+### v5.6 (2026-10-23) — 몬스터 아이콘·동료 HUD
+- 짐승형 아이콘 4종 추가: `img/enemy_witch.webp`(서리 와이번), `enemy_siren.webp`(바다뱀), `enemy_kitsune.webp`(여우불 여우), `enemy_harpy.webp`(폭풍 그리핀). 기존 wolf·drake와 같은 540×960 webp. 사람 없음.
+- 사냥터 필드 아이콘이 3D 스냅 대신 `SPECIES.img`를 씀. 도감·결과 화면은 기존 `spImg`로 새 그림 사용.
+- 사냥 중 동료 HUD에 얼굴 원형 초상(compImg) 표시. 짐승 3D에 속성색 발광(emissive) 살짝 추가.
+- SW `hunt-now-v5.6`. 테스트 v53·v52·v51 12/12, v5 31/31, touch-v2·feel-v4 (헤드리스 390×844).
+
 ### v5.5 (2026-10-22) — 전투 화면 손맛·가독성
 - 몬스터 공격 예고: 더 밝은 주황 범위 + 맥동하는 굵은 빛 테두리(발사 직전 흰색), 머리 위 빨간 '!' 표시(큰 기술은 더 크게, 직전 깜빡임).
 - 타격: 무기 속성 색 타격 줄기(slash) 2~3개, 강타·치명타는 짧은 줌 펀치(화면 흔들림 설정을 끄면 꺼짐).
