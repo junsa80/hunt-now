@@ -12,7 +12,7 @@ const SHAPE = {
 };
 export function buildBeast(sp, look, scale = 1) {
   const S = SHAPE[sp], root = new THREE.Group(), body = new THREE.Group(); root.add(body);
-  const em = look.accent || look.cloth2; const mB = toon(look.cloth2, em), mH = toon(look.hair), mA = toon(look.accent, look.accent), mD = toon(look.cloth), mHorn = toon(look.horns ?? look.accent, look.accent);
+  const em = look.accent || look.cloth2; const bodyCol = new THREE.Color(look.cloth2).multiplyScalar(0.78).getHex(); const mB = toon(bodyCol, em), mH = toon(look.hair), mA = toon(look.accent, look.accent), mD = toon(look.cloth), mHorn = toon(look.horns ?? look.accent, look.accent);
   const hips = new THREE.Group(); hips.position.set(0, S.h, -S.len * 0.32); body.add(hips);
   const torso = new THREE.Group(); torso.position.set(0, S.h + 0.05, S.len * 0.18); body.add(torso);
   part(hips, G.sph, mB, 0.42, 0.4, 0.5); part(torso, G.sph, mB, 0.48, 0.48, 0.58, 0, 0.02, 0); part(torso, G.sph, mD, 0.36, 0.3, 0.5, 0, -0.18, 0.05); // 몸통 2분절 + 배
@@ -24,7 +24,7 @@ export function buildBeast(sp, look, scale = 1) {
   const hd = new THREE.Group(); hd.rotation.x = 0.6; hd.scale.setScalar(1.25); head.add(hd);
   part(hd, G.sph, mH, 0.32, 0.28, 0.34); part(hd, S.beak ? G.cone8 : G.box, S.beak ? mA : mB, S.beak ? 0.1 : 0.2, S.beak ? 0.3 : 0.14, S.beak ? 0.1 : S.snout * 0.7, 0, -0.04, 0.26).rotation.x = S.beak ? Math.PI / 2 : 0;
   const jaw = part(hd, G.box, mD, 0.17, 0.05, S.snout * 0.55, 0, -0.12, 0.22);
-  for (const s of [-1, 1]) { const e = part(hd, G.sph, new THREE.MeshBasicMaterial({ color: new THREE.Color(look.eye) }), 0.045, 0.035, 0.03, s * 0.13, 0.06, 0.2, false); e.rotation.y = s * 0.4; }
+  for (const s of [-1, 1]) { const e = part(hd, G.sph, new THREE.MeshBasicMaterial({ color: new THREE.Color(look.eye) }), 0.06, 0.048, 0.04, s * 0.14, 0.07, 0.22, false); e.rotation.y = s * 0.4; const pupil = part(e, G.sph, new THREE.MeshBasicMaterial({ color: 0x0a0610 }), 0.45, 0.55, 0.35, 0, 0, 0.55, false); }
   const u = root.userData;
   if (S.ears) for (const s of [-1, 1]) part(hd, G.cone8, mH, 0.07, 0.22, 0.05, s * 0.13, 0.22, -0.05).rotation.z = -s * 0.25;
   if (S.horns !== 'none') for (const s of [-1, 1]) { const len = S.horns === 'long' ? 0.42 : S.horns === 'crown' ? 0.28 : S.horns === 'crest' ? 0.3 : 0.2;
@@ -62,13 +62,13 @@ export function animateBeast(root, a) {
   const r = root.userData.rig, T = a.time, s = a.state, p = a.p || 0;
   for (const g of [r.body, r.torso, r.neck, r.head, r.hips, r.tail, r.jaw, r.legFL.sh, r.legFR.sh, r.legBL.sh, r.legBR.sh, r.legFL.el, r.legFR.el, r.legBL.el, r.legBR.el, ...r.tailSegs]) g.rotation.set(0, 0, 0);
   r.body.position.set(0, 0, 0); r.neck.rotation.x = -0.6; r.jaw.rotation.x = 0;
-  const breath = Math.sin(T * 2.2); r.torso.scale.y = 1 + 0.03 * breath; r.neck.rotation.x += 0.04 * breath;
+  const breath = Math.sin(T * 2.0); r.torso.scale.y = 1 + 0.05 * breath; r.torso.scale.x = 1 - 0.02 * breath; r.neck.rotation.x += 0.06 * breath;
   r.tailSegs.forEach((g, i) => { g.rotation.y = Math.sin(T * 2 - i * 0.6) * 0.12; g.rotation.x = -0.05; });
   r.wings.forEach((w, i) => { w.rotation.z = (i ? -1 : 1) * (0.15 + 0.1 * Math.sin(T * 1.8)); });
   const gait = (spd, amp) => { const ph = T * spd; [[r.legFL, 0], [r.legBR, 0], [r.legFR, Math.PI], [r.legBL, Math.PI]].forEach(([l, o]) => { l.sh.rotation.x = Math.sin(ph + o) * amp; l.el.rotation.x = Math.max(0, -Math.sin(ph + o)) * amp * 0.9; });
     r.body.position.y = Math.abs(Math.cos(ph)) * 0.06; r.tailSegs.forEach((g, i) => { g.rotation.y = Math.sin(ph - i * 0.5) * 0.2; }); r.head.rotation.x = Math.sin(ph * 2) * 0.05; };
   if (s === 'run') { gait(9, 0.7 * Math.max(0.4, a.run)); if (a.limp) r.legBR.sh.rotation.x *= 0.3; r.wings.forEach((w, i) => { w.rotation.z = (i ? -1 : 1) * (0.5 + 0.3 * Math.sin(T * 9)); }); }
-  else if (s === 'windup') { if (REAR.has(a.kind)) { r.body.rotation.x = -0.45 * p; r.body.position.y = 0.25 * p; r.legFL.sh.rotation.x = r.legFR.sh.rotation.x = -0.9 * p; r.wings.forEach((w, i) => { w.rotation.z = (i ? -1 : 1) * (0.2 + 0.9 * p); }); r.jaw.rotation.x = 0.4 * p; }
+  else if (s === 'windup') { if (REAR.has(a.kind)) { r.body.rotation.x = -0.58 * p; r.body.position.y = 0.32 * p; r.legFL.sh.rotation.x = r.legFR.sh.rotation.x = -1.05 * p; r.wings.forEach((w, i) => { w.rotation.z = (i ? -1 : 1) * (0.2 + 0.9 * p); }); r.jaw.rotation.x = 0.4 * p; }
     else { r.body.position.y = -0.12 * p; r.body.position.z = -0.2 * p; r.neck.rotation.x = -0.6 + 0.35 * p; r.legBL.sh.rotation.x = r.legBR.sh.rotation.x = 0.5 * p; r.legFL.sh.rotation.x = r.legFR.sh.rotation.x = -0.4 * p; r.jaw.rotation.x = 0.5 * p; r.tailSegs.forEach((g) => { g.rotation.x = 0.12 * p; }); } }
   else if (s === 'attack' || s === 'strike') { r.body.position.z = 0.35; r.neck.rotation.x = -0.2; r.jaw.rotation.x = 0.1; r.legFL.sh.rotation.x = r.legFR.sh.rotation.x = 0.6; r.body.rotation.x = 0.12; r.wings.forEach((w, i) => { w.rotation.z = (i ? 1 : -1) * 0.3; }); }
   else if (s === 'roar') { const k = Math.sin(Math.min(1, p * 1.4) * Math.PI); r.body.rotation.x = -0.35 * k; r.neck.rotation.x = -0.6 - 0.5 * k; r.jaw.rotation.x = 0.7 * k; r.head.rotation.z = Math.sin(T * 30) * 0.05 * k; r.wings.forEach((w, i) => { w.rotation.z = (i ? -1 : 1) * (0.2 + 1.1 * k); }); }

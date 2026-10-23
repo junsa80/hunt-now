@@ -119,9 +119,9 @@ const trailGeo = new THREE.RingGeometry(1.2, 2.2, 24, 1, -0.9, 1.8).rotateX(-Mat
 const trails = [];
 function slashTrail(ent, color, scale, vertical) {
   const m = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
-  m.position.copy(ent.pos); m.position.y = 1.0; m.rotation.y = ent.face - Math.PI / 2; m.rotation.order = 'YXZ'; if (vertical) m.rotation.z = Math.PI / 2.3; m.scale.setScalar(scale); scene.add(m); trails.push({ m, life: 0.18 });
+  m.position.copy(ent.pos); m.position.y = 1.0; m.rotation.y = ent.face - Math.PI / 2; m.rotation.order = 'YXZ'; if (vertical) m.rotation.z = Math.PI / 2.3; m.scale.setScalar(scale); scene.add(m); trails.push({ m, life: 0.26 });
 }
-function updTrails(dt) { for (let i = trails.length - 1; i >= 0; i--) { const t = trails[i]; t.life -= dt; t.m.material.opacity = Math.max(0, t.life / 0.18) * 0.85; if (t.life <= 0) { scene.remove(t.m); t.m.material.dispose(); trails.splice(i, 1); } } }
+function updTrails(dt) { for (let i = trails.length - 1; i >= 0; i--) { const t = trails[i]; t.life -= dt; t.m.material.opacity = Math.max(0, t.life / 0.26) * 0.9; if (t.life <= 0) { scene.remove(t.m); t.m.material.dispose(); trails.splice(i, 1); } } }
 // 텔레그래프: shape {type:'circle'|'cone'|'line'|'ring', x,z, a(방향), r, r2, ang, w, len}
 const telegraphs = [];
 function makeTele(sh, dur) {
@@ -356,7 +356,7 @@ function applyStatus(e, el, amt) {
     popNum(e.pos, STATUS[el].n + '!', 'info'); burst(e.pos.clone().setY(1.2), elemColor(el), 16, 4);
     if (k === 'para' && e.team === 1) { e.ai = 'stun'; e.aiT = 2.2; clearMonsterTele(e); } }
 }
-function hitstopOf(wtype, heavy, fin) { const W = WEIGHT[wtype] || 1; return Math.min(0.14, heavy ? 0.07 + 0.05 * W : Math.max(0.04, 0.025 + 0.025 * W) + (fin ? 0.015 * W : 0)); } // 가벼운 타 40~61ms · 막타 +7~22ms · 모으기/강공 95~142ms
+function hitstopOf(wtype, heavy, fin) { const W = WEIGHT[wtype] || 1; return Math.min(0.14, heavy ? 0.075 + 0.052 * W : Math.max(0.042, 0.027 + 0.027 * W) + (fin ? 0.018 * W : 0)); } // 가벼운 타 40~61ms · 막타 +7~22ms · 모으기/강공 95~142ms
 function damageMonster(m, base, src, opt = {}) {
   if (!alive(m)) return;
   let dmg = base, cls = '';
@@ -372,14 +372,14 @@ function damageMonster(m, base, src, opt = {}) {
   if (opt.crit) { dmg *= 1.6; cls = 'crit'; }
   if (src.team === 0 && !src.isPlayer) { const tot = G.stats.dealt + (G.stats.compDealt || 0); if (tot > 200 && (G.stats.compDealt || 0) / tot > COMP_CAP) dmg *= 0.2; } // 동료는 조력자: 피해 비중 25% 넘으면 크게 줄임
   dmg = Math.round(dmg * rnd(0.92, 1.08));
-  m.hp = Math.max(0, m.hp - dmg); m.hitFlash = src.isPlayer ? 0.07 : 0; if (src.isPlayer) { G.stats.dealt += dmg; G.stats.totalHits++; } else if (src.team === 0) G.stats.compDealt = (G.stats.compDealt || 0) + dmg;
+  m.hp = Math.max(0, m.hp - dmg); m.hitFlash = src.isPlayer ? (opt.heavy || opt.crit ? 0.14 : 0.09) : 0; if (src.isPlayer) { G.stats.dealt += dmg; G.stats.totalHits++; } else if (src.team === 0) G.stats.compDealt = (G.stats.compDealt || 0) + dmg;
   if (opt.crit) cls += ' crit'; if (cls.includes('elem') || cls.includes('both')) cls += ' e-' + src.elem;
   popNum(opt.at || m.pos, String(dmg), (cls + (src.isPlayer && dmg >= (src.atk || 10) * 2.2 ? ' big' : src.isPlayer && dmg < (src.atk || 10) * 0.9 ? ' small' : '')).trim()); // 피해 크기만큼 숫자 크기
   const hp = (opt.at || m.pos.clone().setY(1.1 * m.S.scale)), w = src.isPlayer ? WEIGHT[src.wtype] || 1 : 0.5;
   burst(hp, src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xfff2c0, opt.heavy ? 18 : 8, opt.heavy ? 7 : 4);
-  if (src.isPlayer) { fx.slash(hp, src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xfff0c0, !!(opt.heavy || opt.crit)); if (opt.heavy || opt.crit) G.punch = Math.max(G.punch || 0, opt.crit ? 0.16 : 0.12); }
+  if (src.isPlayer) { fx.slash(hp, src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xfff0c0, !!(opt.heavy || opt.crit)); if (opt.heavy || opt.crit) { G.punch = Math.max(G.punch || 0, opt.crit ? 0.24 : 0.18); const W = WEIGHT[src.wtype] || 1; G.hitstop = Math.max(G.hitstop, hitstopOf(src.wtype || 'sns', !!opt.heavy, false)); G.shake = Math.max(G.shake, (opt.heavy ? 0.32 : 0.14) * W); } }
   if (src.isPlayer && qLevel > 0) hitGlow(hp, opt.crit ? 0x9ff8ff : src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xffe0a0, opt.heavy || opt.crit ? 1.6 : 1);
-  if (src.isPlayer) { fx.impact(hp, opt.crit ? 0x9ff8ff : src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xfff0c0, (0.7 + 0.45 * w) * (opt.heavy ? 1.35 : 1), wpt); if (wpt) sfx('weak'); }
+  if (src.isPlayer) { fx.impact(hp, opt.crit ? 0x9ff8ff : src.elem && src.elem !== 'none' ? elemColor(src.elem) : 0xfff0c0, (0.85 + 0.55 * w) * (opt.heavy ? 1.55 : 1) * (opt.crit ? 1.15 : 1), wpt); if (wpt) sfx('weak'); }
   // 포이즈: 공격 중(예비 동작·타격)엔 슈퍼아머 — 가벼운 타격엔 움찔하지 않음. 누적 피해가 문턱을 넘거나, 돌진 예비 동작 중 머리를 맞으면 끊김
   const armored = m.ai === 'windup' || m.ai === 'strike' || m.ai === 'roar';
   if (src.isPlayer) { const inWin = m.ai === 'recover' || m.ai === 'stun' || m.ai === 'topple'; if (inWin) G.stats.winDealt += dmg; else G.stats.outDealt += dmg; m.poise = (m.poise || 0) + dmg * (opt.heavy ? 1.6 : 1); }
@@ -409,7 +409,7 @@ function updGlows(dt) { for (const g of glows) if (g.sp.visible) { g.t -= dt; if
 function monsterBody(e, T) { const r = e.model.userData.rig; if (!r) return; const s = e.state;
   if (s === 'idle' || s === 'stun') { r.torso.scale.y = 1 + 0.03 * Math.sin(T * 2.2 + e.lvl); r.torso.scale.x = 1 - 0.012 * Math.sin(T * 2.2 + e.lvl); }
   else { r.torso.scale.set(1, 1, 1); }
-  if (s === 'run') { const st = Math.abs(Math.sin(T * 7)); r.body.position.y -= 0.05 * st; r.torso.rotation.x += 0.12; if (st < 0.08 && !e._step) { e._step = true; if (G && e.pos.distanceTo(G.player.pos) < 9) G.shake = Math.max(G.shake || 0, 0.04); } else if (st > 0.3) e._step = false; }
+  if (s === 'run') { const st = Math.abs(Math.sin(T * 6.2)); r.body.position.y -= 0.07 * st; r.torso.rotation.x += 0.16; if (st < 0.08 && !e._step) { e._step = true; if (G && e.pos.distanceTo(G.player.pos) < 9) G.shake = Math.max(G.shake || 0, 0.04); } else if (st > 0.3) e._step = false; }
   if (s === 'windup' && e.cur) { const p = clamp(e.cur.t / e.cur.list[0].dur, 0, 1); r.body.position.y -= 0.12 * p; r.torso.rotation.x -= 0.3 * p; r.body.scale.setScalar(1 + 0.04 * p); }
   else r.body.scale.setScalar(1);
   if (s === 'attack' || s === 'strike') r.torso.rotation.x += 0.35; }
@@ -462,7 +462,7 @@ function playerAttackHit(p, mult, heavy, opt = {}) {
     if (wt.ko && alive(m)) addKo(m, mult * (heavy ? 6 : 4) * (part && HEAD_PARTS.includes(part.key) ? 1.5 : 1));
     any = true; }
   const W = WEIGHT[p.wtype] || 1;
-  if (any) { G.hitstop = Math.max(G.hitstop, hitstopOf(p.wtype, heavy, p.combo >= (wt.combo?.length || 9) - 1) + (opt.special ? 0.02 : 0)); G.lastHitstop = G.hitstop; G.shake = Math.max(G.shake, (heavy ? 0.28 : 0.08) * W); G.shakeDir = p.face; sfx(heavy ? 'heavy' : 'hit', W); vib(Math.round((heavy ? 32 : 10) * W)); if (crit) { p.counter = 0; $('counter').classList.add('hidden'); }
+  if (any) { G.hitstop = Math.max(G.hitstop, hitstopOf(p.wtype, heavy, p.combo >= (wt.combo?.length || 9) - 1) + (opt.special ? 0.02 : 0)); G.lastHitstop = G.hitstop; G.shake = Math.max(G.shake, (heavy ? 0.36 : 0.12) * W); G.shakeDir = p.face; sfx(heavy ? 'heavy' : 'hit', W); vib(Math.round((heavy ? 32 : 10) * W)); if (crit) { p.counter = 0; $('counter').classList.add('hidden'); }
     if (p.wtype === 'ls' && !opt.special) p.spirit = Math.min(100, p.spirit + (heavy ? 4 : 9)); }
   const col = crit ? 0x7ff8ff : (p.wtype === 'ls' && p.spiritLvl ? [0xffffff, 0xffffff, 0xffe066, 0xff5050][p.spiritLvl] : (p.elem !== 'none' ? elemColor(p.elem) : 0xffffff));
   weaponTrail(p, col, rng, heavy, opt.wide);
@@ -471,7 +471,7 @@ function playerAttackHit(p, mult, heavy, opt = {}) {
 // 무기별 궤적: 동작 스타일(가로/역가로/내려찍기/올려베기/회전/찌르기)에 맞춘 호
 function weaponTrail(p, col, rng, heavy, wide) {
   const style = p.wtype === 'lance' ? 'thrust' : (ATK_STYLE[p.wtype]?.[(Math.max(0, p.combo)) % 4] || 'over'), W = WEIGHT[p.wtype] || 1, r = Math.max(1.3, rng * 0.95) * (heavy ? 1.15 : 1), w = 0.25 + 0.35 * W;
-  const base = { color: col, r, w, dur: 0.16 + 0.08 * W, y: 1.05 };
+  const base = { color: col, r, w: w * (heavy ? 1.25 : 1), dur: (heavy ? 0.22 : 0.17) + 0.1 * W, y: 1.05 };
   if (style === 'thrust') { fx.trail(p, Object.assign(base, { from: -0.12, to: 0.12, r: r * 1.25, w: r * 1.1, y: 1.15 })); return; }
   if (style === 'hor') fx.trail(p, Object.assign(base, { from: 1.7, to: -1.5 }));
   else if (style === 'rev') fx.trail(p, Object.assign(base, { from: -1.7, to: 1.5, y: 1.15 }));
@@ -783,8 +783,8 @@ function updCamera(dt) {
   G.camPos.lerp(_cv, Math.min(1, dt * 5)); G.camPos.y = Math.max(1.6, G.camPos.y); camera.position.copy(G.camPos);
   if (L) _lk.copy(p.pos).lerp(L.pos, port ? 0.62 : 0.55).setY(0.9 + L.S.scale * MSCALE * (port ? 0.55 : 0.45)); else _lk.copy(p.pos).addScaledVector(fwd(p.face), 2).setY(1.2);
   G.camLook = G.camLook || _lk.clone(); G.camLook.lerp(_lk, Math.min(1, dt * 6)); camera.lookAt(G.camLook);
-  { const baseFov = innerWidth < innerHeight ? 62 : 50, pk = G.punch > 0 ? G.punch : 0; if (pk > 0) G.punch = Math.max(0, G.punch - dt); const f = baseFov - (save.settings.shake ? 28 * pk : 0); if (Math.abs(camera.fov - f) > 0.01) { camera.fov = f; camera.updateProjectionMatrix(); } } // v5.5 강타 줌 펀치
-  if (G.shake > 0 && save.settings.shake) { const k = G.shake * G.shake, t = G.t * 60; camera.rotateZ(Math.sin(t * 1.3) * 0.012 * k); camera.rotateX(Math.sin(t * 1.7 + 1) * 0.02 * k); camera.translateX(Math.sin(t * 2.1) * 0.12 * k); }
+  { const baseFov = innerWidth < innerHeight ? 62 : 50, pk = G.punch > 0 ? G.punch : 0; if (pk > 0) G.punch = Math.max(0, G.punch - dt * 0.75); const f = baseFov - (save.settings.shake ? 38 * pk : 0); if (Math.abs(camera.fov - f) > 0.01) { camera.fov = f; camera.updateProjectionMatrix(); } } // v5.5 강타 줌 펀치
+  if (G.shake > 0 && save.settings.shake) { const k = G.shake * G.shake, t = G.t * 60; camera.rotateZ(Math.sin(t * 1.3) * 0.016 * k); camera.rotateX(Math.sin(t * 1.7 + 1) * 0.028 * k); camera.translateX(Math.sin(t * 2.1) * 0.12 * k); }
   sun.position.set(p.pos.x + 6, 14, p.pos.z + 5); sun.target.position.set(p.pos.x, 0, p.pos.z); // 그림자는 헌터 주변만 (저렴)
 }
 // 락온 표시 & 약점 강조
@@ -840,7 +840,7 @@ function step(rdt) {
   if (G.hitstop > 0) { G.hitstop -= rdt; G.allies.concat(G.monsters).forEach(e => animEnt(e, T)); updCamera(rdt); return; }
   let dt = rdt; if (G.slowmo > 0) { G.slowmo -= rdt; dt *= 0.3; }
   if (window.__bot) window.__bot(dt);
-  G.t += dt; G.shake = Math.max(0, G.shake - rdt * 1.6); G.buff = Math.max(0, G.buff - dt);
+  G.t += dt; G.shake = Math.max(0, G.shake - rdt * 1.15); G.buff = Math.max(0, G.buff - dt);
   if (!G.over) { G.time -= dt; if (G.time <= 0) { G.time = 0; G.over = true; banner('시간 초과'); { const g = G; setTimeout(() => G === g && endHunt(false), 1400); } } }
   const p = G.player;
   if (!G.over || alive(p)) updPlayer(p, dt);

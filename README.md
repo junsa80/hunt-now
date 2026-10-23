@@ -116,6 +116,12 @@
 - 올린 그림: img/title_cover.webp(57KB, 게임 선택기 thumbs/hunt-now.webp 재사용), img/hero_aria_face.webp(8.6KB), img/hero_hana_face.webp(7.9KB), img/hero_rin_face.webp(6.2KB). 초상은 Grok Bot 이미지 생성 → 192px 잘라 webp.
 - SW hunt-now-v5.4. 테스트 v53 12/12, v52 12/12, v51 12/12, v5 31/31, touch-v2 41/41, feel-v4 23/23 (헤드리스 390x844, 실제 폰 아님).
 
+
+### v5.8 (2026-10-23) — 전투 3D·타격감
+- 몬스터/동료 툰 머티리얼·실루엣·예비동작 가독 개선, 원소 발광 강조 (모바일 부하 최소).
+- 강타 히트스톱·화면 펀치·셰이크·궤적·충격 FX 무게감 (shake 토글 존중). 전투 밸런스 수치 불변.
+- SW hunt-now-v5.8. 헤드리스 테스트(실제 폰 아님).
+
 ### v5.7 (2026-10-23) — 정화 동료 사람형 2D 초상
 - 6종 `img/comp_{wolf,witch,drake,siren,kitsune,harpy}.webp` (216×288, 성인·옷 갖춤·하이칼라, hero_aria_face·표지 톤). `data.js` `human` 필드. `compImg`가 2D 우선.
 - 동료 목록·장비·이야기·사냥 HUD·정화 결과에서 3D 스냅 대신 2D. 짐승형 `img` 유지.
