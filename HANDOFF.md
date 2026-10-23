@@ -1,6 +1,6 @@
 # HANDOFF: 헌트 나우 (다른 AI가 이어서 작업하기 위한 메모)
 
-마지막 갱신: 2026-10-23 · 현재 버전: v5.6 (저장 형식 v4, SW hunt-now-v5.6)
+마지막 갱신: 2026-10-23 · 현재 버전: v5.7 (저장 형식 v4, SW hunt-now-v5.7)
 플레이: https://junsa80.github.io/hunt-now/ · 저장소: https://github.com/junsa80/hunt-now
 
 ## 원칙 (사용자 규칙)
@@ -102,3 +102,7 @@
 ## v5.6 (브랜치 grokbot/update-1023, 2026-10-23)
 - 짐승형 아이콘 4종(witch/siren/kitsune/harpy) + 필드가 SPECIES.img 사용. 사냥 동료 HUD 얼굴. 짐승 emissive.
 - ART_PROMPTS의 사람형 초상은 아직 3D 스냅(다음 할 일). 헤드리스만, 실제 폰 미확인.
+
+
+## v5.7 (브랜치 grokbot/update-1023-comp, 2026-10-23)
+- 사람형 2D 초상 6종(comp_*.webp) + SPECIES.human. 동료 6명 한 화면 유지. 헤드리스만.
