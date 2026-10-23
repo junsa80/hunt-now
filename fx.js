@@ -3,7 +3,7 @@ import * as THREE from './vendor/three.module.js';
 const rnd = (a, b) => a + Math.random() * (b - a);
 
 // ── 림라이트: 툰 재질에 프레넬 가장자리 빛을 추가 (재질 단위로 1회 주입)
-export const RIM = { value: new THREE.Color(0xfff0d8) }, RIM_K = { value: 0.55 };
+export const RIM = { value: new THREE.Color(0xfff0d8) }, RIM_K = { value: 0.72 };
 export function addRim(m) {
   if (!m || m.userData.rim || !m.isMeshToonMaterial) return; m.userData.rim = true;
   m.onBeforeCompile = (sh) => { sh.uniforms.rimCol = RIM; sh.uniforms.rimK = RIM_K;
@@ -31,8 +31,8 @@ export function createFx(scene, camera) {
   const spr = (tex, color, add = true) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color, transparent: true, depthWrite: false, depthTest: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending })); s.renderOrder = 20; scene.add(s); return s; };
   // 타격 섬광: 별 + 링 (크기는 무기 무게/강타에 비례)
   function impact(pos, color = 0xfff2c0, size = 1, weak = false) {
-    const s = spr(starTex, color); s.position.copy(pos); s.material.rotation = rnd(0, 3); live.push({ o: s, t: 0, d: 0.16, s0: 0.6 * size, s1: 1.9 * size });
-    const r = spr(ringTex, color); r.position.copy(pos); live.push({ o: r, t: 0, d: 0.22, s0: 0.3 * size, s1: 2.4 * size });
+    const s = spr(starTex, color); s.position.copy(pos); s.material.rotation = rnd(0, 3); live.push({ o: s, t: 0, d: 0.14 + 0.08 * Math.min(size, 2.2), s0: 0.55 * size, s1: 2.15 * size });
+    const r = spr(ringTex, color); r.position.copy(pos); live.push({ o: r, t: 0, d: 0.2 + 0.1 * Math.min(size, 2.2), s0: 0.28 * size, s1: 2.7 * size });
     if (weak) { const x = spr(xTex, 0xff8a1a, false); x.position.copy(pos); x.material.depthTest = false; live.push({ o: x, t: 0, d: 0.35, s0: 0.75 * size, s1: 0.55 * size, hold: true }); }
   }
   // 바닥 충격파 (포효·내려찍기)
@@ -50,7 +50,7 @@ export function createFx(scene, camera) {
     live.push({ o: grp, t: 0, d: o.dur || 0.24, trail: m, seg });
   }
   function slash(pos, color = 0xffffff, heavy = false) { const n = heavy ? 3 : 2, a0 = rnd(0, Math.PI);
-    for (let i = 0; i < n; i++) { const st = spr(streakTex, i ? color : 0xffffff); st.position.copy(pos); st.material.rotation = a0 + (i - (n - 1) / 2) * 0.5 + rnd(-0.15, 0.15); live.push({ o: st, t: 0, d: heavy ? 0.2 : 0.14, s0: 0.4, s1: (heavy ? 4.2 : 2.8) * (1 - i * 0.18), streak: true }); } }
+    for (let i = 0; i < n; i++) { const st = spr(streakTex, i ? color : 0xffffff); st.position.copy(pos); st.material.rotation = a0 + (i - (n - 1) / 2) * 0.5 + rnd(-0.15, 0.15); live.push({ o: st, t: 0, d: heavy ? 0.28 : 0.15, s0: 0.45, s1: (heavy ? 5.0 : 2.9) * (1 - i * 0.18), streak: true }); } }
   function update(dt) {
     for (let i = live.length - 1; i >= 0; i--) { const L = live[i]; L.t += dt; const k = Math.min(1, L.t / L.d);
       if (L.trail) { const g = L.trail.geometry; g.setDrawRange(0, Math.ceil(Math.min(1, k * 2.6) * L.seg) * 6); L.trail.material.opacity = k < 0.4 ? 1 : 1 - (k - 0.4) / 0.6; }

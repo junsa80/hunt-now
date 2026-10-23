@@ -16,3 +16,6 @@
 | 실피 (harpy, 쌍검) | 폭풍을 두른 연두 그리핀 | 연두 머리 20대 여성 쌍검사, 깃털 망토, 가벼운 여행복, 쌍검 |
 
 정화 장면 일러스트(선택): 「짐승의 몸에 금이 가고 검은 파편이 흩어지며, 빛 속에서 무기를 쥔 성인 여성이 나타나는 순간」 — 위 사람형 설명을 그대로 붙여 씁니다.
+
+## v5.8 combat polish
+- 3D only: darker beast body base, larger eyes+pupil, stronger rim/emissive, thicker outline; no new raster art.

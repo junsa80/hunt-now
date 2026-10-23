@@ -7,7 +7,7 @@ const grad = (() => { const d = new Uint8Array([70, 70, 70, 255, 160, 160, 160, 
 const matCache = new Map();
 export function toon(color, emissive = 0) {
   const k = color + ':' + emissive; if (matCache.has(k)) return matCache.get(k);
-  const m = new THREE.MeshToonMaterial({ color, gradientMap: grad, emissive, emissiveIntensity: emissive ? 0.6 : 0 });
+  const m = new THREE.MeshToonMaterial({ color, gradientMap: grad, emissive, emissiveIntensity: emissive ? 0.9 : 0 });
   addRim(m); matCache.set(k, m); return m;
 }
 const outlineMat = new THREE.MeshBasicMaterial({ color: 0x1a1020, side: THREE.BackSide });
@@ -21,7 +21,7 @@ const G = {
 };
 function part(parent, geo, mat, sx, sy, sz, x = 0, y = 0, z = 0, outline = true) {
   const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); parent.add(m);
-  m.castShadow = true; if (outline) { const o = new THREE.Mesh(geo, outlineMat); o.scale.setScalar(1.09); m.add(o); }
+  m.castShadow = true; if (outline) { const o = new THREE.Mesh(geo, outlineMat); o.scale.setScalar(1.13); m.add(o); }
   return m;
 }
 function faceTex(eye, angry) {
