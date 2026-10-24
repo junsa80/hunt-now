@@ -60,13 +60,23 @@ const partPoints = (sp) => SPECIES[sp].parts.reduce((a, p) => a + matPoints(sp, 
 function spendPartPoints(sp, pts) { for (const p of SPECIES[sp].parts) { const have = matPoints(sp, p.key); const use = Math.min(have, pts); spendPoints(sp, p.key, use); pts -= use; } }
 
 // ───────── 설정/효과 ─────────
-let actx, noiseBuf;
+let actx, noiseBuf, bgmEl;
+function bgm(on) {
+  try {
+    if (!bgmEl) { bgmEl = new Audio('sfx/bgm.mp3'); bgmEl.loop = true; bgmEl.volume = 0.28; }
+    if (!on) { bgmEl.pause(); return; }
+    if (!bgmEl.paused) return;
+    const p = bgmEl.play(); if (p && p.catch) p.catch(function () {});
+  } catch (e) {}
+}
+addEventListener('pointerdown', function () { bgm(!!save.settings.sound); }, { passive: true });
 // 겹친 합성음: 저음 쿵(바디) + 노이즈 타격(크랙) + 금속성 핑(약점) — 무게에 따라 피치/길이 조절
 function tone(t, f0, f1, dur, type, vol, dest) { const o = actx.createOscillator(), g = actx.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.02); }
 function noise(t, dur, vol, freq, q, dest, type = 'bandpass') { if (!noiseBuf) { noiseBuf = actx.createBuffer(1, actx.sampleRate * 0.5, actx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
   const n = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain(); n.buffer = noiseBuf; f.type = type; f.frequency.value = freq; f.Q.value = q; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); n.connect(f); f.connect(g); g.connect(dest); n.start(t); n.stop(t + dur + 0.02); }
 function sfx(kind, w = 1) {
   if (!save.settings.sound) return;
+  bgm(true);
   try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
   const t = actx.currentTime, D = actx.destination;
   if (kind === 'hit' || kind === 'heavy') { const hv = kind === 'heavy' ? 1.5 : 1, k = w * hv;
@@ -1136,7 +1146,7 @@ uiEl.addEventListener('click', (e) => {
   if (d.crafta) { const sp = d.crafta; spendPoints(sp, 'hide', 4); spendPartPoints(sp, 2); save.armors.push({ id: newId('a'), sp, lvl: 1 }); sfx('win'); }
   if (d.party) { const i = save.party.indexOf(d.party); if (i >= 0) save.party.splice(i, 1); else if (save.party.length < 3) save.party.push(d.party); else alert('동료는 최대 3명까지 편성할 수 있어요.'); }
   if (d.cw) { const c = save.comps.find(x => x.id === d.cw); const opts = [null, ...save.weapons.map(w => w.id)]; c.weapon = opts[(opts.indexOf(c.weapon) + 1) % opts.length]; persist(); gearComp = c.id; gearScreen(); return; }
-  if (d.tog) { save.settings[d.tog] = !save.settings[d.tog]; }
+  if (d.tog) { save.settings[d.tog] = !save.settings[d.tog]; if (d.tog === 'sound') bgm(save.settings.sound); }
   if (d.q) { save.settings.quality = d.q; qRaised = false; delete save.qAuto; applyQuality(qualityFromSetting()); }
   if (d.act === 'reroll') { const f = fieldState(); if (f.refresh < MAX_REFRESH) { f.refresh++; fieldSel = null; } }
   if (d.freg) { fieldState().region = d.freg; fieldSel = null; }
