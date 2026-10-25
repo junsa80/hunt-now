@@ -3,7 +3,7 @@
 다른 AI(다른 Grok 계정, 저가 Grok, ChatGPT/Codex)가 이 저장소를 이어받을 때 가장 먼저 읽는 문서. Read this first.
 
 - 라이브 / Live: https://junsa80.github.io/hunt-now/ · 저장소: https://github.com/junsa80/hunt-now (public, Pages = main /)
-- 담당 / Owner: Grok 계열 (Grok, Grok Bot). 현재 버전 v4 (게임 코드 커밋 `8696532`, SW 캐시 `hunt-now-v4`).
+- 담당 / Owner: Grok 계열 (Grok, Grok Bot). 현재 버전 v6.0 (SW 캐시 `hunt-now-v6.0`, 사냥 Lv 선택·긴급 의뢰). 버전별 내용은 HANDOFF.md.
 
 ## 읽는 순서 / Read order
 1. 이 파일 → 2. `HANDOFF.md`(현재 상태·남은 일) → 3. `README.md`(조작·무기·몬스터·변경 기록) → 4. `docs/mhnow-gap.md`(몬헌 나우와의 차이) → 5. 코드: `data.js`(몬스터·무기·대사) → `main.js`(전투·AI·UI·저장) → `chars.js`(캐릭터) → `fx.js`(연출) → `sw.js`.

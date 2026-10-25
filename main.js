@@ -2,7 +2,7 @@ import * as THREE from './vendor/three.module.js';
 import { buildGirl, animate, setWeapon, toon, ownOutline, ATK_STYLE, bodyPart, GEO } from './chars.js';
 import { buildBeast, animateBeast } from './beasts.js';
 import { createFx, buildEnv, RIM, warnTex } from './fx.js';
-import { LORE, OPENING, HEROES, BEATS, PURIFY_SCENE, PURIFY_FAIL } from './lore.js';
+import { LORE, OPENING, HEROES, BEATS, PURIFY_SCENE, PURIFY_FAIL, LADDER, ENDING } from './lore.js';
 import { NICHE, MODS, MOD_KEYS, teamFx, rosterFx, xpMul, ROSTER } from './synergy.js';
 import { MENTOR, FADE_N, TECH_T1, HUNTER_ONLY, TECH_STEPS, mentorPassive, mentorTier } from './mentor.js';
 import { STORIES, STORY_UNLOCK, BARKS } from './story.js';
@@ -249,6 +249,8 @@ let pollInput = () => {};
 // ───────── 전투 상태 ─────────
 let G = null; // 현재 사냥
 const HUNT_TIME = 75; // v5: 몬헌 나우식 75초 사냥
+// v6.0 곡선: 적 체력 Lv당 +40% → +22%, 공격 +20% → +16%. 무기 강화(+15%/단계)와 맞물려 '장비 +N ≈ 사냥 Lv N'. 예전엔 Lv이 HR을 따라와 강화가 못 따라감(test/curve-v60.js)
+const HP_PER_LV = 0.22, DMG_PER_LV = 0.16;
 const COMP_CAP = 0.25;
 const MSCALE = 1.22; // 몬스터를 헌터보다 확실히 크게 (몬헌 나우의 체급 차)
 const CANCEL_AT = { sns: 0.4, db: 0.4, bow: 0.4, ls: 0.6, lance: 0.6, gs: 0.95, hammer: 0.9 }; // 회피 캔슬 가능 시점(동작 비율)
@@ -256,6 +258,7 @@ const WEIGHT = { sns: 0.6, db: 0.5, ls: 0.85, bow: 0.5, lance: 0.9, gs: 1.45, ha
 function weaponById(id) { return save.weapons.find(w => w.id === id); }
 function armorById(id) { return save.armors.find(a => a.id === id); }
 const weaponAtk = (w) => w ? Math.round(WEAPON_TYPES[w.type].base * (1 + 0.15 * (w.lvl - 1)) * (w.elem === 'none' ? 1 : 1.05)) : 6;
+const wName = (w) => (w.uniq ? '★' : '') + WEAPON_TYPES[w.type].n;
 const armorDef = (a) => a ? (a.sp === 'none' ? 8 : 14) + a.lvl * 6 : 0;
 const defMul = (def) => 60 / (60 + def);
 const elemColor = (e) => ELEM[e]?.col ?? 0xffffff;
@@ -302,8 +305,8 @@ function startHunt(node) { $("trainBox").classList.add("hidden"); $("bPot").text
     e.hp = e.maxHp; e.pos.set(rnd(-3, 3), 0, 9 + rnd(0, 2)); e.face = Math.PI; allies.push(e); }
   const monsters = node.mons.map((mn, i) => { const S = SPECIES[mn.sp], L = mn.lvl;
     const m = buildBeast(mn.sp, S.look, (S.scale + L * 0.02) * MSCALE); // v5.1: 적은 흐림에 삼켜진 짐승형
-    const hp = Math.round(S.hp * 2.1 * (1 + 0.4 * (L - 1)) * (node.mons.length > 1 ? 0.75 : 1) * (node.mod === 'thick' && i === 0 ? 1.35 : 1));
-    const e = makeEntity(m, { team: 1, sp: mn.sp, S, lvl: L, name: `${S.short} Lv${L}`, maxHp: hp, dmg: S.dmg * (1 + 0.2 * (L - 1)), speed: S.speed * (1 + 0.03 * L), elem: S.elem, weak: S.weak, ai: 'move', aiT: 1.5 + i, atkCd: 1.6 + i * 1.5, cur: null, aggro: null, taunt: 0, defDown: 0, slow: 0,
+    const hp = Math.round(S.hp * 2.1 * (1 + HP_PER_LV * (L - 1)) * (node.mons.length > 1 ? 0.75 : 1) * (node.mod === 'thick' && i === 0 ? 1.35 : 1));
+    const e = makeEntity(m, { team: 1, sp: mn.sp, S, lvl: L, name: `${S.short} Lv${L}`, maxHp: hp, dmg: S.dmg * (1 + DMG_PER_LV * (L - 1)), speed: S.speed * (1 + 0.03 * L), elem: S.elem, weak: S.weak, ai: 'move', aiT: 1.5 + i, atkCd: 1.6 + i * 1.5, cur: null, aggro: null, taunt: 0, defDown: 0, slow: 0,
       parts: S.parts.map(p => ({ ...p, hp: Math.round(hp * 0.22), max: Math.round(hp * 0.22), broken: false })) });
     const glow = new THREE.Mesh(new THREE.SphereGeometry(0.75, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff2030, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending })); glow.scale.set(1, 1.6, 1); glow.position.y = 1.0; glow.visible = false; m.add(glow); e.glow = glow;
     e.mod = i === 0 ? node.mod || null : null; if (e.mod === 'fury') e.dmg *= 1.35; if (e.mod === 'rage') { e.enraged = true; e.rageDone = true; }
@@ -903,8 +906,13 @@ function endHunt(win) {
     return { own, lvlOk: m.lvl >= PURIFY_MIN_LVL, ok: win && !own && sc.total >= PURIFY_NEED && m.lvl >= PURIFY_MIN_LVL && st.broken >= 1 }; });
   const rm = RARITY[node.rar || 0]?.drop || 1; if (win && rm > 1) for (const k in drops) drops[k] = Math.ceil(drops[k] * rm);
   if (win && node.fid && save.field) save.field.cleared.push(node.fid);
+  let lad = null; // v6.0 긴급 의뢰 첫 달성: 칭호 · ★ 무기(지금 무기 종류, 보스 속성) · 경험치
+  if (win && node.ladder) { save.ladder = save.ladder || { done: [] }; const Rg = LADDER.find(x => x.id === node.ladder), i = LADDER.indexOf(Rg);
+    if (Rg && !save.ladder.done.includes(Rg.id)) { save.ladder.done.push(Rg.id); const cw = weaponById(save.equip.weapon), el = S_[Rg.mons[0].sp].elem;
+      const uw = { id: newId('w'), type: cw.type, elem: el, lvl: Math.min(15, LAD_WLV[i]), uniq: Rg.id }; save.weapons.push(uw); save.titles = (save.titles || []).concat([Rg.title]); save.title = Rg.title;
+      lad = { id: Rg.id, t: Rg.t, title: Rg.title, w: `★${WEAPON_TYPES[uw.type].n}(${ELEM[el].n}) +${uw.lvl}`, xp: 100 * (i + 1), final: !!Rg.final }; } }
   for (const k in drops) addMat(k, drops[k]);
-  const xp = Math.round((40 + node.lvl * 20) * share);
+  const xp = Math.round((40 + node.lvl * 20) * share) + (lad ? lad.xp : 0);
   save.hrXp += xp; let ranked = false; while (save.hrXp >= save.hr * 100) { save.hrXp -= save.hr * 100; save.hr++; ranked = true; }
   const compXp = Math.round(30 * share); save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) { c.xp = (c.xp || 0) + Math.round(compXp * xpMul(c, save.comps)); while (c.xp >= c.level * 60 && c.level < 10 + c.potential * 4) { c.xp -= c.level * 60; c.level++; } } });
   save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) save.bond[c.species] = (save.bond[c.species] || 0) + (win ? 2 : 1); });
@@ -915,7 +923,7 @@ function endHunt(win) {
   const tip = worst ? { k: worst[0], n: st.hitBy[worst[0]], d: Math.round(worst[1]) } : null;
   for (const m of mons) { const cd = codexOf(m.sp); cd.seen++; if (G.player.elem && G.player.elem !== 'none') cd.elems[G.player.elem] = 1; for (const k in st.hitBy) cd.hitBy[k] = (cd.hitBy[k] || 0) + st.hitBy[k]; if (win) { cd.won++; cd.maxLvl = Math.max(cd.maxLvl, m.lvl); } }
   persist();
-  lastResult = { win, sc, need: PURIFY_NEED, canPurify: purInfo.some(x => x.ok), purInfo, drops, xp, ranked, mons: mons.map(m => ({ sp: m.sp, lvl: m.lvl })), st, purified: false, tip, noHit, clean, share, dmgR: dmgAll, timeout: !win && G.time <= 0 };
+  lastResult = { win, sc, need: PURIFY_NEED, canPurify: purInfo.some(x => x.ok), purInfo, drops, xp, ranked, mons: mons.map(m => ({ sp: m.sp, lvl: m.lvl })), st, purified: false, tip, noHit, clean, share, dmgR: dmgAll, timeout: !win && G.time <= 0, lad, ladder: node.ladder || null };
   setTimeout(() => { teardown(); showResult(); }, 400);
 }
 function teardown() { if (!G) return; G.monsters.forEach(m => { if (m.warn) { scene.remove(m.warn); m.warn.material.dispose(); m.warn = null; } }); clearArrows(); touches.clear(); input.mx = input.mz = 0; input.dodgeBuf = null; input.tapBuf = -9; $('stick').style.opacity = 0; [...G.allies, ...G.monsters].forEach(e => scene.remove(e.model)); [...telegraphs].forEach(killTele); G = null; $('hud').classList.add('hidden'); lockMark.visible = weakMark.visible = false; setRing(0); input.atkDown = false; }
@@ -957,7 +965,7 @@ const owned = (sp) => save.comps.some(c => c.species === sp);
 const PURIFY_NEED = 70, PURIFY_MIN_LVL = 2;
 let forgeType = 'sns';
 let tab = 'hunt';
-function genNodes() { const hr = save.hr, nodes = []; const sps = Object.keys(S_);
+function genNodes() { const hr = huntLv(), nodes = []; const sps = Object.keys(S_);
   for (let i = 0; i < 4; i++) { const lvl = Math.max(1, hr + [-1, 0, 0, 1][i] + (i === 3 ? Math.floor(hr / 3) : 0)); const multi = lvl >= 3 && i === 3;
     const off = Math.floor(Math.random() * sps.length), mons = [{ sp: sps[(i + off) % sps.length], lvl }]; if (multi) mons.push({ sp: sps[(i + off + 1) % sps.length], lvl: Math.max(1, lvl - 1) }); nodes.push({ id: i, lvl, mons }); }
   return nodes; }
@@ -966,10 +974,18 @@ const REGIONS = { meadow: { n: '바람 초원', sp: ['wolf', 'harpy', 'kitsune',
 const RARITY = [{ n: '일반', c: 'r0', lv: 0, drop: 1 }, { n: '희귀', c: 'r1', lv: 1, drop: 1.5 }, { n: '전설', c: 'r2', lv: 2, drop: 2 }];
 const GATHER = { meadow: ['약초 덤불', '광맥', '뼈 무더기'], snow: ['얼음 결정', '광맥', '서리꽃'], coast: ['조개 무더기', '산호초', '유목'] };
 const MAX_REFRESH = 3;
+// v6.0 사냥 Lv 직접 선택: 적 Lv = 고른 사냥 Lv(+지도 위치 편차). HR은 상한만. huntLv가 없거나(예전 저장) 최대면 HR을 따라감 → 예전과 같은 화면
+const maxHuntLv = () => Math.max(1, save.hr);
+const huntLv = () => clamp(save.huntLv ?? save.hr, 1, maxHuntLv());
+// 장비로 본 적정 사냥 Lv (test/curve-v60.js 솔로 회피 봇 표로 맞춤: 봇은 사람보다 잘 피하고 꾸준히 때려서, 봇 피해의 2/3로 75초 안에 잡는 Lv을 적정으로 봄). 동료는 넣지 않은 보수적 값
+const REC_GEAR = (w, a) => Math.max(1, Math.round((w * 3 + a) / 4)); // 무기 위주(피해량이 승패를 가름), 방어구는 1/4
+const LAD_WLV = [4, 7, 10, 12]; // 긴급 의뢰 ★무기 강화 단계
+const gearLv = () => { const w = weaponById(save.equip.weapon), a = armorById(save.equip.armor); return REC_GEAR(w ? w.lvl : 1, a ? a.lvl : 1); };
+function lvTag(L) { const g = gearLv(), d = L - g; return d <= -2 ? ['쉬움', 'easy'] : d <= 0 ? ['적정', 'ok'] : d === 1 ? ['도전', 'hard'] : ['위험', 'risk']; }
 function seeded(str) { let h = 1779033703 ^ str.length; for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; } return () => { h = Math.imul(h ^ h >>> 16, 2246822507); h = Math.imul(h ^ h >>> 13, 3266489909); return ((h ^= h >>> 16) >>> 0) / 4294967296; }; }
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
 function fieldState() { const f = save.field; if (!f || f.day !== today()) save.field = { day: today(), region: f?.region || 'meadow', refresh: 0, cleared: [], gathered: [] }; return save.field; }
-function genField(reg) { const f = fieldState(), R = seeded(`${f.day}|${reg}|${f.refresh}`), hr = save.hr, out = [], pos = [[22, 24], [70, 20], [48, 46], [18, 66], [76, 62]];
+function genField(reg) { const f = fieldState(), R = seeded(`${f.day}|${reg}|${f.refresh}`), hr = huntLv(), out = [], pos = [[22, 24], [70, 20], [48, 46], [18, 66], [76, 62]];
   for (let i = 0; i < 5; i++) { const rr = R(), rar = rr > 0.93 ? 2 : rr > 0.7 ? 1 : 0, sp = REGIONS[reg].sp[Math.floor(R() * 4)];
     const lvl = Math.max(1, hr + [-1, 0, 0, 1, 1][i] + RARITY[rar].lv); const mons = [{ sp, lvl }]; if (rar === 2 && lvl >= 3) mons.push({ sp: REGIONS[reg].sp[(REGIONS[reg].sp.indexOf(sp) + 1) % 4], lvl: lvl - 1 });
     const mod = rar >= 1 ? MOD_KEYS[Math.floor(R() * MOD_KEYS.length)] : null;
@@ -987,7 +1003,9 @@ function fieldBody(w, a) { const f = fieldState(), reg = f.region, F = genField(
   const gp = F.gp.map(g => `<button class="fgath" data-fgath="${g.gid}" style="left:${g.x}%;top:${g.y}%">✦<span>${g.n}</span></button>`).join('');
   const sel = fieldSel != null && F.mons[fieldSel]; let info = `<div class="finfo note">몬스터를 탭하면 사냥 정보가 떠요. ✦ 채집 포인트는 탭하면 소재를 얻어요. 출현은 매일 바뀌어요(새로 찾기 ${MAX_REFRESH - f.refresh}회 남음).</div>`;
   if (sel) { const n = sel; info = `<div class="finfo"><div><b>${n.mons.map(m => `<span class="${ELEM[S_[m.sp].elem].c}">${S_[m.sp].name}</span> Lv${m.lvl}`).join(' + ')}</b><br><span class="tag ${RARITY[n.rar].c}">${RARITY[n.rar].n}${n.rar ? ' · 소재 ×' + RARITY[n.rar].drop : ''}</span><span class="tag">약점 ${n.mons.map(m => ELEM[S_[m.sp].weak].n).join('/')}</span>${n.mod ? `<span class="tag r2">${MODS[n.mod].icon} ${MODS[n.mod].n}: ${MODS[n.mod].d}</span>` : ''}${n.mons.map(m => owned(m.sp) ? '<span class="tag">동료 보유</span>' : m.lvl >= PURIFY_MIN_LVL ? '<span class="tag pur">정화 가능 Lv</span>' : '<span class="tag">Lv1 정화 불가</span>').join('')}</div>${advHint(n)}<button class="btn" data-fgo="${fieldSel}">사냥 시작</button></div>`; }
-  return `<div class="note">HR <b>${save.hr}</b> · ${save.hrXp}/${save.hr * 100} · ${WEAPON_TYPES[w.type].n}(${ELEM[w.elem].n}) +${w.lvl} · 방어 ${armorDef(a)}</div><div class="tabs">${regs}</div>
+  const L = huntLv(), tg = lvTag(L), ld = (save.ladder?.done || []).length, nextR = LADDER.find(x => !(save.ladder?.done || []).includes(x.id));
+  const hlv = `<div class="hlv"><button class="btn alt hbtn ${L <= 1 ? 'dis' : ''}" data-hlv="-1" aria-label="사냥 Lv 내리기">−</button><div class="hlvt"><b>사냥 Lv ${L}</b> <span class="lvtag ${tg[1]}">${tg[0]}</span><br><span class="note">최대 ${maxHuntLv()}(HR) · 장비 적정 Lv ${gearLv()}</span></div><button class="btn alt hbtn ${L >= maxHuntLv() ? 'dis' : ''}" data-hlv="1" aria-label="사냥 Lv 올리기">+</button><button class="btn hbtn lad ${nextR && save.hr >= nextR.hr ? 'glow' : ''}" data-act="ladder">🏆 ${ld}/${LADDER.length}</button></div>`;
+  return `<div class="note">HR <b>${save.hr}</b> · ${save.hrXp}/${save.hr * 100} · ${wName(w)}(${ELEM[w.elem].n}) +${w.lvl} · 방어 ${armorDef(a)}</div>${hlv}<div class="tabs">${regs}</div>
     <div id="fieldMap" class="fmap ${REGIONS[reg].bg}">${gp}${mk}<div class="fme">🧭</div></div>${info}
     <div class="row"><button class="btn alt sm ${f.refresh >= MAX_REFRESH ? 'dis' : ''}" data-act="reroll">새로 찾기</button><span class="note">조작: 드래그=이동 · 탭=공격 · 휙=회피 · 길게=${holdName(w.type)}</span></div>`; }
 const heroOf = () => HEROES.find(h => h.id === save.hero) || HEROES[0];
@@ -1023,7 +1041,7 @@ function village() {
     const WT = WEAPON_TYPES[forgeType];
     body = `<h2>무기 (7종)</h2><div class="tabs">${types}</div><div class="note"><b>${WT.n}</b> · ${WT.desc}<br>특수기: <b>${WT.sp.n}</b></div>` + save.weapons.filter(x => x.type === forgeType).map(x => { const cost = 2 + x.lvl, sp = x.elem === 'none' ? null : ELEM_SRC[x.elem];
       const can = sp ? matPoints(sp, 'hide') >= cost : Object.keys(S_).some(s => matPoints(s, 'hide') >= cost);
-      return `<div class="card"><div class="t"><b>${WEAPON_TYPES[x.type].n} · <span class="${ELEM[x.elem].c}">${ELEM[x.elem].n}</span> +${x.lvl}</b> ${save.equip.weapon === x.id ? '<span class="tag">장착 중</span>' : ''}<br>공격력 ${weaponAtk(x)} → ${weaponAtk({ ...x, lvl: x.lvl + 1 })}<br><span class="note">강화: ${sp ? S_[sp].short : '아무'} 가죽 ${cost}점</span></div>
+      return `<div class="card"><div class="t"><b>${wName(x)} · <span class="${ELEM[x.elem].c}">${ELEM[x.elem].n}</span> +${x.lvl}</b> ${save.equip.weapon === x.id ? '<span class="tag">장착 중</span>' : ''}<br>공격력 ${weaponAtk(x)} → ${weaponAtk({ ...x, lvl: x.lvl + 1 })}<br><span class="note">강화: ${sp ? S_[sp].short : '아무'} 가죽 ${cost}점</span></div>
       <div class="row" style="flex-direction:column"><button class="btn sm ${save.equip.weapon === x.id ? 'dis' : ''}" data-eqw="${x.id}">장착</button><button class="btn sm alt ${can && x.lvl < 15 ? '' : 'dis'}" data-upw="${x.id}">강화</button></div></div>`; }).join('') +
       `<h2>속성 ${WT.n} 제작</h2>` + Object.entries(ELEM_SRC).map(([el, sp]) => { const t = forgeType; const have = save.weapons.some(x => x.type === t && x.elem === el); const can = matPoints(sp, 'hide') >= 3 && partPoints(sp) >= 1;
         return `<div class="card"><div class="t"><b class="${ELEM[el].c}">${ELEM[el].n} ${WEAPON_TYPES[t].n}</b><br><span class="note">${S_[sp].short} 가죽 3점 + 부위 소재 1점 · ${ELEM[el].n} 약점 몬스터에 피해 +35%, ${STATUS[el].n} 부여</span></div><button class="btn sm ${have || !can ? 'dis' : ''}" data-craft="${t}:${el}">${have ? '보유' : '제작'}</button></div>`; }).join('') +
@@ -1102,9 +1120,19 @@ function showResult() {
     <h2>정화 판정 (전투 결과 기준)</h2><table class="score">${rows.map(([n, v, mx]) => `<tr><td>${n}</td><td><b>${v}</b> / ${mx}</td></tr>`).join('')}<tr><td><b>합계</b></td><td class="big">${sc.total} <span class="note">/ 기준 ${r.need}</span></td></tr></table><p class="note">정화 조건: 점수 ${r.need}점 이상 + 몬스터 Lv${PURIFY_MIN_LVL} 이상 + 부위 파괴 1곳 이상 + 아직 없는 종</p>
     ${purifyBlock}
     ${r.tip ? `<p class="note">📓 가장 아팠던 공격: <b>${MOVE_INFO[r.tip.k]?.[0] || r.tip.k}</b> ×${r.tip.n} (피해 ${r.tip.d}) — ${MOVE_INFO[r.tip.k]?.[2] || ''}</p>` : ''}${r.noHit ? '<p class="note">🏅 무피격 토벌 보너스: 머리 부위 소재 +2</p>' : ''}${r.clean ? '<p class="note">🏅 완벽 회피 3회+ 보너스: 가죽 +2</p>' : ''}
+    ${r.lad ? `<div class="ladrw"><b>🏆 긴급 의뢰 「${r.lad.t}」 달성!</b><br><span class="note">칭호 「${r.lad.title}」 · ${r.lad.w} 무기 · 경험치 +${r.lad.xp}(포함)</span></div>` : ''}
     <h2>획득</h2><div class="note">${Object.entries(r.drops).map(([k, n]) => `${matName(k)} ×${n}`).join('<br>') || '소재 없음'}<br>헌터 경험치 +${r.xp}${r.ranked ? ` · <b>HR ${save.hr} 달성!</b>` : ''} · 완벽 회피 ${r.st.perfect}회 · 부위 파괴 ${r.st.broken}</div>
-    <div class="row" style="margin-top:12px"><button class="btn" data-act="village">마을로</button></div>`);
+    <div class="row" style="margin-top:12px">${r.lad?.final ? '<button class="btn" data-act="ending">종장 보기</button>' : r.ladder ? '<button class="btn alt" data-act="ladder">긴급 의뢰</button>' : ''}<button class="btn" data-act="village">마을로</button></div>`);
 }
+function ladderScreen() { const done = save.ladder?.done || [];
+  const rows = LADDER.map((Rg, i) => { const ok = done.includes(Rg.id), prev = i === 0 || done.includes(LADDER[i - 1].id), open = save.hr >= Rg.hr && prev, L = Math.max(...Rg.mons.map(m => m.lvl)), tg = lvTag(L);
+    return `<div class="card ladc ${ok ? 'done' : open ? '' : 'lock'}"><div class="t"><b>${ok ? '✔' : open ? '🏆' : '🔒'} ${i + 1}. ${Rg.t}</b>${Rg.final ? ' <span class="tag r2">최종</span>' : ''}<br>
+      <span class="note">${Rg.mons.map(m => `${S_[m.sp].short} Lv${m.lvl}`).join(' + ')}${Rg.mod ? ` · ${MODS[Rg.mod].icon} ${MODS[Rg.mod].n}` : ''} · <span class="lvtag ${tg[1]}">${tg[0]}</span></span><br>
+      <span class="note">${open || ok ? Rg.s : `열림: HR ${Rg.hr}${prev ? '' : ' · 앞 의뢰 달성'}`}</span><br><span class="note">첫 달성: 칭호 「${Rg.title}」 · ★무기 +${LAD_WLV[i]} · 경험치 +${100 * (i + 1)}</span></div>
+      <button class="btn hbtn ${open ? '' : 'dis'}" data-lad="${Rg.id}">${ok ? '다시' : '도전'}</button></div>`; }).join('');
+  ui(`<h1>🏆 긴급 의뢰 · 보스 사다리</h1><p class="note">HR 3·6·9·10에 열리는 보스 의뢰. 마지막 「맥이 모이는 곳」을 끝내면 종장이에요.${save.title ? ` 지금 칭호: <b>${save.title}</b>` : ''} 적정 표시는 지금 장비(솔로) 기준이고, 동료가 있으면 더 쉬워요.</p>${rows}
+    <div class="row">${done.includes('L4') ? '<button class="btn alt hbtn" data-act="ending">종장 다시 보기</button>' : ''}<button class="btn alt hbtn" data-act="village">← 마을</button></div>`, 'village gear'); }
+function endingScreen() { ui(`<div class="op"><div class="note">메인 스토리 · 종장</div><h1>${ENDING.t}</h1><p>${hName(ENDING.s)}</p><p class="note">칭호 「흐림을 걷은 자」를 얻었어요. 사냥 Lv을 골라 계속 사냥하고, 긴급 의뢰는 언제든 다시 할 수 있어요.</p><div class="row"><button class="btn" data-act="village">마을로</button></div></div>`, 'village gear op-wrap op-art'); }
 function purify(i, role) {
   const r = lastResult; if (!r.canPurify || r.purified || !r.purInfo[i]?.ok) return; const m = r.mons[i], S = S_[m.sp];
   if (owned(m.sp)) { r.canPurify = false; showResult(); return; } // 중복 영입 방지
@@ -1151,6 +1179,10 @@ uiEl.addEventListener('click', (e) => {
   if (d.act === 'reroll') { const f = fieldState(); if (f.refresh < MAX_REFRESH) { f.refresh++; fieldSel = null; } }
   if (d.freg) { fieldState().region = d.freg; fieldSel = null; }
   if (d.fmon !== undefined) { fieldSel = +d.fmon; }
+  if (d.hlv) { const v = clamp(huntLv() + +d.hlv, 1, maxHuntLv()); save.huntLv = v >= maxHuntLv() ? null : v; fieldSel = null; save.nodes = null; }
+  if (d.act === 'ladder') { ladderScreen(); return; }
+  if (d.act === 'ending') { endingScreen(); return; }
+  if (d.lad) { const Rg = LADDER.find(x => x.id === d.lad); if (!Rg) return; clearIdle(); startHunt({ id: 'lad', lvl: Math.max(...Rg.mons.map(m => m.lvl)), mons: Rg.mons.map(m => ({ ...m })), mod: Rg.mod, rar: 2, ladder: Rg.id }); return; }
   if (d.fgo !== undefined) { const n = save.nodes[+d.fgo]; fieldSel = null; clearIdle(); startHunt(n); return; }
   if (d.fgath) { const f = fieldState(); if (!f.gathered.includes(d.fgath)) { f.gathered.push(d.fgath); const sps = REGIONS[f.region].sp, sp = sps[Math.floor(Math.random() * 4)], q = save.hr >= 5 ? 2 : 1; addMat(`${sp}:hide:${q}`, 1 + (Math.random() < 0.4 ? 1 : 0)); if (Math.random() < 0.35) addMat(`${sp}:${S_[sp].parts[0].key}:${q}`, 1); banner('채집!', 700); sfx('brk'); } }
   if (d.act === 'village') { tab = 'hunt'; }
@@ -1170,5 +1202,5 @@ uiEl.addEventListener('change', async (e) => {
 });
 addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
-window.HN = { hitstopTable: () => Object.fromEntries(Object.keys(WEIGHT).map(w => [w, [hitstopOf(w, false, false), hitstopOf(w, false, true), hitstopOf(w, true, false)].map(x => Math.round(x * 1000))])), roll: (a) => { const p = G?.player; if (p && alive(p) && cancelable(p)) { doRoll(p, a); return true; } return false; }, drink: () => drinkPotion(), nowT: () => nowT(), inShape: (sh, x, z) => inShape(sh, x, z), BIG,  beastImg: (sp) => beastImg(sp), noteMoveForTest: (k) => noteMove(k), startTraining: (id) => startTraining(save.comps.find(c => c.id === id)), skipIntro: () => { save.opened = true; save.hero = save.hero || 'aria'; save.beats = BEATS.map(b => b.hr); persist(); village(); }, startHuntForTest: (i = 0) => { village(); clearIdle(); startHunt(save.nodes[i]); }, startHuntNode: (n) => { clearIdle(); startHunt(n); }, damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
+window.HN = { hitstopTable: () => Object.fromEntries(Object.keys(WEIGHT).map(w => [w, [hitstopOf(w, false, false), hitstopOf(w, false, true), hitstopOf(w, true, false)].map(x => Math.round(x * 1000))])), roll: (a) => { const p = G?.player; if (p && alive(p) && cancelable(p)) { doRoll(p, a); return true; } return false; }, drink: () => drinkPotion(), nowT: () => nowT(), inShape: (sh, x, z) => inShape(sh, x, z), BIG,  beastImg: (sp) => beastImg(sp), noteMoveForTest: (k) => noteMove(k), startTraining: (id) => startTraining(save.comps.find(c => c.id === id)), skipIntro: () => { save.opened = true; save.hero = save.hero || 'aria'; save.beats = BEATS.map(b => b.hr); persist(); village(); }, startHuntForTest: (i = 0) => { village(); clearIdle(); startHunt(save.nodes[i]); }, startHuntNode: (n) => { clearIdle(); startHunt(n); }, damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, huntLv: () => huntLv(), gearLv: () => gearLv(), LADDER, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
 village();
