@@ -89,3 +89,13 @@
   - 받은 피해 절대값이 Lv10 에서 큰 것은 판이 짧아도 최대 HP 가 커서 더 오래 버티며 맞기 때문이다.
 - **실행**: `URL=http://127.0.0.1:<port>/ BOT=tank COMPS=wolf:5,witch:5,harpy:5 GEAR=1 LV=15 SPS=wolf,witch,drake,siren,kitsune,harpy SPEED=4 node test/curve-v60.js`
 
+
+## 2026-10-26 GPT HN-SAVE-01 — 손상 저장 원본 보호 (6.1.2)
+- 기준 main764b823. 수정 전 '{broken' 저장으로 시작하면 catch→freshSave→persist가 원문을 새 기록으로 덮어씀을 Node 실제 저장코드 회귀로 재현.
+- main.js: 초기 읽기/파싱/이관 실패 시 원문 보존 및 persist 차단. 복구 전용 화면에서 원본 다운로드·정상 백업 가져오기·명시적 초기화 제공. 가져오기 실패/취소는 기존 기록 유지. 유효 백업 확인 후에만 차단 해제. 현재 지원 범위를 넘는 저장 버전도 보존.
+- 저장 key/스키마(v4)·전투·성장·영입 규칙 변경 없음. 손상 JSON을 자동으로 복구한 것이 아니라 덮어쓰기를 막고 정상 백업 복구를 제공.
+- test/save-recovery.mjs: 수정 전 FAIL → 후 PASS(잘못된 JSON/루트/이관 실패, 저장소 읽기 거부, 새게임, v4 재로드, v1 무기/소재 유지).
+- test/recovery-browser.cjs: Chromium153+SwiftShader,360×800/390×844/412×915 실제 터치 원문 다운로드 일치·잘못된 import 거절·정상 import/재로드·44px버튼·pageerror0 PASS.
+- 기존 qa-v601 14/14 PASS: 저장·이관·승패·재도전·강화·부위·모바일4규격. cache-isolation PASS. 두 기존 브라우저 스크립트에 CHROME 실행경로 환경변수 지원 추가.
+- 테스트 초기 서버 연결 실패는 실행별 네트워크 분리로 같은 명령 안에 서버+검사를 실행해 해결. 첫 복구 브라우저 시나리오는 새로고침 직전 자동저장으로 주입자료가 덮였으므로 새 문서 시작 시 손상자료 주입으로 수정 후 통과. 제품 실패와 구분.
+- 원시 로그 docs/qa/*20261026.txt. 실제 스마트폰/장시간 조작감 미검증. 공개 반영은 game-hub 통합 로그에서 별도 확인.

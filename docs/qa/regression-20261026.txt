@@ -1,0 +1,15 @@
+PASS 저장 → 새로고침 후 그대로(HR·사냥 Lv·소재·의뢰·칭호) — {"hr":4,"lv":2,"m":9,"lad":["L1"],"t":"초원의 사냥꾼"}
+PASS v1 저장 이관: 형식 v4·무기 7종·기존 무기·소재 유지·사냥 Lv=HR·주인공 한 번 고르기 화면 — {"v":4,"hr":3,"wt":7,"keep":3,"mats":4,"lv":3,"ui":true}
+PASS v4(v6.0 이전) 저장: 사냥 Lv=HR, 의뢰 기록 없음으로 시작 — {"lv":7,"err":null}
+PASS 승리: 결과 화면·승리 수·소재 — {"win":true,"wins":1,"drops":2,"txt":true}
+PASS 실패: 결과 화면·실패 수·위로 경험치 — {"win":false,"fails":1,"xp":8,"txt":true}
+PASS 재도전: 마을 → 지도 몬스터 → 사냥 시작
+PASS 대장간 강화: 소재로 무기 +1 — {"l0":3,"l1":4}
+PASS 셀레스·드라카: 정면 근처에서 머리 부위도 맞음(예전엔 날개만) — {"w":{"light":{"wing":3,"crown":2},"heavy":{"crown":3,"wing":2},"anchor":true},"d":{"light":{"wing":3,"horn":2},"heavy":{"horn":3,"wing":2},"anchor":true}}
+PASS 코하쿠 귀 장식에 앵커(예전엔 발밑) — {"light":{"ear":5},"heavy":{"ear":5},"anchor":true}
+PASS 360x800 사냥 탭 한 화면·가로 넘침 없음·탭 ≥44px·글자 ≥12px — {"over":0,"ox":false,"minF":12,"minB":44}
+PASS 390x844 사냥 탭 한 화면·가로 넘침 없음·탭 ≥44px·글자 ≥12px — {"over":0,"ox":false,"minF":12,"minB":44}
+PASS 412x915 사냥 탭 한 화면·가로 넘침 없음·탭 ≥44px·글자 ≥12px — {"over":0,"ox":false,"minF":12,"minB":44}
+PASS 360x780 사냥 탭 한 화면·가로 넘침 없음·탭 ≥44px·글자 ≥12px — {"over":0,"ox":false,"minF":12,"minB":44}
+PASS JS 오류 없음
+14/14 passed

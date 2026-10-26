@@ -4,7 +4,7 @@ const puppeteer = require('puppeteer-core');
 const URL = process.env.URL || 'http://127.0.0.1:18923/';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms)); let pass = 0, fail = 0; const ok = (n, c, i = '') => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL ') + n + (i ? ' — ' + i : '')); };
 (async () => {
-  const browser = await puppeteer.launch({ headless: 'new', executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const browser = await puppeteer.launch({ headless: 'new', executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   for (const [W, H] of [[390, 844], [360, 800]]) {
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage(), errors = [], vp = `${W}x${H}`;
     page.on('pageerror', e => errors.push(e.message));

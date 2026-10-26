@@ -1,0 +1,7 @@
+PASS 390x844 첫 실행 저장에 mUsed·mentor
+PASS 390x844 마무리 콤보 기록됨 — {"sns:fin":3}
+PASS 390x844 JS 오류 없음
+PASS 360x800 첫 실행 저장에 mUsed·mentor
+PASS 360x800 마무리 콤보 기록됨 — {"sns:fin":4}
+PASS 360x800 JS 오류 없음
+6/6 passed

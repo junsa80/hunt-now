@@ -5,7 +5,7 @@ const URL = process.env.URL || 'http://127.0.0.1:18923/', OUT = process.env.SHOT
 const sleep = (ms) => new Promise(r => setTimeout(r, ms)); let pass = 0, fail = 0; const ok = (n, c, i = '') => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL ') + n + (i ? ' — ' + i : '')); };
 require('fs').mkdirSync(OUT, { recursive: true });
 (async () => {
-  const browser = await puppeteer.launch({ headless: 'new', executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const browser = await puppeteer.launch({ headless: 'new', executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const errors = [];
   const open = async (W, H, fresh) => { const ctx = fresh ? await (browser.createBrowserContext ? browser.createBrowserContext() : browser.createIncognitoBrowserContext()) : browser; const page = await ctx.newPage(); await page.emulate({ viewport: { width: W, height: H, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, userAgent: 'Mozilla/5.0 (Linux; Android 14) Mobile' });
     page.on('pageerror', e => errors.push(`${W}x${H} ${e.message}`)); return page; };

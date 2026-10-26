@@ -1,0 +1,1 @@
+PASS malformed originals, denied reads, new save, v4 reload and legacy gear/material migration

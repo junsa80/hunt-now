@@ -46,10 +46,16 @@ function migrate(s) {
   if (!s.settings.quality) s.settings.quality = 'auto'; // v4: 화질 설정 (저장 버전 유지, 기본값만 추가)
   return s;
 }
-let save;
-try { save = migrate(JSON.parse(localStorage.getItem(SAVE_KEY))); } catch { save = freshSave(); }
+function readBackup(raw) {
+  const s = JSON.parse(raw);
+  if (!s || typeof s !== 'object' || Array.isArray(s) || !Array.isArray(s.weapons) || !s.mats || typeof s.mats !== 'object' || Array.isArray(s.mats) || (s.v !== undefined && (!Number.isInteger(s.v) || s.v < 1 || s.v > SAVE_V))) throw Error('지원하지 않는 저장 파일');
+  return migrate(s);
+}
+let save, recoveryRaw = null, storedRaw = null;
+try { storedRaw = localStorage.getItem(SAVE_KEY); save = storedRaw === null ? freshSave() : readBackup(storedRaw); }
+catch { recoveryRaw = storedRaw ?? ''; save = freshSave(); }
 let saveStatus = '';
-function persist() { save.savedAt = Date.now(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); saveStatus = '저장됨 ' + new Date().toLocaleTimeString('ko-KR'); } catch (e) { saveStatus = '저장 실패: ' + e.message; } }
+function persist() { if (recoveryRaw !== null) { saveStatus = '원본 보존 중 · 자동 저장 중지'; return; } save.savedAt = Date.now(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); saveStatus = '저장됨 ' + new Date().toLocaleTimeString('ko-KR'); } catch (e) { saveStatus = '저장 실패: ' + e.message; } }
 persist();
 const newId = (p) => p + (save.nextId++);
 const mat = (k) => save.mats[k] || 0;
@@ -936,7 +942,13 @@ function teardown() { if (!G) return; G.monsters.forEach(m => { if (m.warn) { sc
 
 // ───────── UI 화면 ─────────
 const uiEl = $('ui');
-function ui(html, cls = '') { uiEl.innerHTML = html; uiEl.className = cls; }
+function ui(html, cls = '') {
+  if (recoveryRaw !== null) {
+    uiEl.innerHTML = '<section class="screen"><h1>저장 기록 보호</h1><p>기존 저장을 읽지 못해 원본을 덮어쓰지 않았습니다. 새 진행은 저장되지 않습니다.</p><p>먼저 원본을 내보낸 뒤 정상 백업을 가져오세요. 기록 초기화는 원본을 삭제합니다.</p><div class="row"><button class="btn" data-act="export">보존된 원본 내보내기</button><button class="btn alt" data-act="import">정상 백업 가져오기</button><button class="btn alt" data-act="reset">기록 초기화</button></div><input type="file" id="impFile" accept="application/json,.json" class="hidden"></section>';
+    uiEl.className = 'recovery-screen'; return;
+  }
+  uiEl.innerHTML = html; uiEl.className = cls;
+}
 const S_ = SPECIES;
 // 2D 그림이 없는 종은 3D 모델을 찍어 초상화로 사용
 const portraitCache = {}; let pRend = null;
@@ -1194,17 +1206,17 @@ uiEl.addEventListener('click', (e) => {
   if (d.act === 'village') { tab = 'hunt'; }
   if (d.act === 'ack') { delete save.notice; }
   if (d.ftype) { forgeType = d.ftype; }
-  if (d.act === 'export') { const blob = new Blob([JSON.stringify(save, null, 1)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `hunt-now-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click(); return; }
+  if (d.act === 'export') { const blob = new Blob([recoveryRaw !== null ? recoveryRaw : JSON.stringify(save, null, 1)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `hunt-now-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click(); return; }
   if (d.act === 'import') { $('impFile').click(); return; }
-  if (d.act === 'reset') { if (confirm('정말 모든 기록을 지울까요? 되돌릴 수 없어요. (먼저 백업을 권장해요)')) { save = freshSave(); } }
+  if (d.act === 'reset') { if (confirm('정말 모든 기록을 지울까요? 되돌릴 수 없어요. (먼저 백업을 권장해요)')) { save = freshSave(); recoveryRaw = null; } }
   persist(); village();
 });
 uiEl.addEventListener('change', async (e) => {
   if (e.target.id !== 'impFile' || !e.target.files[0]) return;
-  try { const s = JSON.parse(await e.target.files[0].text()); if (!s.weapons || !s.mats) throw new Error('헌트 나우 백업 파일이 아니에요');
+  try { const s = readBackup(await e.target.files[0].text());
     const newer = (save.savedAt || 0) > (s.savedAt || 0);
     const msg = `백업(${new Date(s.savedAt || 0).toLocaleString('ko-KR')}, HR ${s.hr})으로 현재 기록(HR ${save.hr})을 덮어씁니다.` + (newer ? '\n⚠ 지금 기기의 기록이 백업보다 최신이에요! 최신 기록이 사라집니다.' : '') + '\n계속할까요?';
-    if (confirm(msg)) { save = migrate(s); persist(); alert('가져오기 완료'); village(); } } catch (err) { alert('가져오기 실패: ' + err.message); }
+    if (confirm(msg)) { save = s; recoveryRaw = null; persist(); alert('가져오기 완료'); village(); } } catch (err) { alert('가져오기 실패: ' + err.message); }
 });
 addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
