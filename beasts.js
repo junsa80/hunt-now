@@ -26,7 +26,7 @@ export function buildBeast(sp, look, scale = 1) {
   const jaw = part(hd, G.box, mD, 0.17, 0.05, S.snout * 0.55, 0, -0.12, 0.22);
   for (const s of [-1, 1]) { const e = part(hd, G.sph, new THREE.MeshBasicMaterial({ color: new THREE.Color(look.eye) }), 0.06, 0.048, 0.04, s * 0.14, 0.07, 0.22, false); e.rotation.y = s * 0.4; const pupil = part(e, G.sph, new THREE.MeshBasicMaterial({ color: 0x0a0610 }), 0.45, 0.55, 0.35, 0, 0, 0.55, false); }
   const u = root.userData;
-  if (S.ears) for (const s of [-1, 1]) part(hd, G.cone8, mH, 0.07, 0.22, 0.05, s * 0.13, 0.22, -0.05).rotation.z = -s * 0.25;
+  if (S.ears) for (const s of [-1, 1]) { const e = part(hd, G.cone8, mH, 0.07, 0.22, 0.05, s * 0.13, 0.22, -0.05); e.rotation.z = -s * 0.25; if (S.horns === 'none') u['horn' + s] = e; } // v6.0.1: 뿔 없는 종(코하쿠)은 귀가 머리 부위 앵커(없으면 발밑으로 잡혔음)
   if (S.horns !== 'none') for (const s of [-1, 1]) { const len = S.horns === 'long' ? 0.42 : S.horns === 'crown' ? 0.28 : S.horns === 'crest' ? 0.3 : 0.2;
     const g = new THREE.Group(); g.position.set(s * (S.horns === 'crest' ? 0.04 : 0.12), 0.18, -0.06); hd.add(g); g.rotation.set(-0.7, 0, -s * (S.horns === 'crest' ? 0.05 : 0.35));
     part(g, G.cone8, mHorn, 0.055, len, 0.055, 0, len / 2, 0); if (S.horns === 'crown') part(g, G.cone8, mHorn, 0.04, len * 0.7, 0.04, s * 0.08, len * 0.3, 0.06);
