@@ -1,4 +1,4 @@
-import * as THREE from './vendor/three.module.js';
+import * as THREE from './vendor/three.module.min.js';
 import { buildGirl, animate, setWeapon, toon, ownOutline, ATK_STYLE, bodyPart, GEO } from './chars.js';
 import { buildBeast, animateBeast } from './beasts.js';
 import { createFx, buildEnv, RIM, warnTex } from './fx.js';

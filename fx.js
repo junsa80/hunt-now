@@ -1,5 +1,5 @@
 // v4 시각 효과: 하늘·지형·풀·꽃·부유 입자, 타격 섬광, 무기별 베기 궤적, 충격파 링, 림라이트 주입
-import * as THREE from './vendor/three.module.js';
+import * as THREE from './vendor/three.module.min.js';
 const rnd = (a, b) => a + Math.random() * (b - a);
 
 // ── 림라이트: 툰 재질에 프레넬 가장자리 빛을 추가 (재질 단위로 1회 주입)
