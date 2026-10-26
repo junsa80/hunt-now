@@ -222,4 +222,7 @@ h1{margin:4px 0 8px;font-size:24px}h2{font-size:18px;margin:14px 0 6px}
 .lvtag{display:inline-block;font-size:12px;border-radius:6px;padding:1px 6px;font-weight:800}.lvtag.easy{background:#2f7a4a}.lvtag.ok{background:#2a6ad8}.lvtag.hard{background:#c88a10}.lvtag.risk{background:#c8344a}
 .ladc .t{flex:1;font-size:14px}.ladc .note{font-size:12px}.ladc.lock{opacity:.6}.ladc.done{border-color:#ffd24a88}
 .ladrw{background:#c88a1033;border:1px solid #ffd24a88;border-radius:12px;padding:8px;margin:8px 0;font-size:14px}
-.hlv ~ .fmap{height:min(29vh,250px)} /* 사냥 Lv 줄만큼 지도를 줄여 한 화면 유지 */
+.hlv ~ .fmap{height:min(27vh,236px)} /* 사냥 Lv 줄만큼 지도를 줄여 한 화면 유지 */
+/* v6.0.1 모바일: 마을 탭·지역 탭 터치 44px, 360px 폭에서 「대장간」 줄바꿈(탭 56px) 막고 지도 조금 더 줄여 사냥 탭 한 화면 */
+#ui.village .tabs .btn.sm,#ui.village .row .btn.sm{min-height:44px}
+@media (max-width:370px){#ui.village .tabs .btn.sm{white-space:nowrap;padding:8px 6px}.hlv ~ .fmap{height:min(25vh,210px)}}
