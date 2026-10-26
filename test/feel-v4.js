@@ -39,7 +39,7 @@ const results = []; const ok = (n, p, i = '') => { results.push(p); console.log(
     ok(`${tag}: 분노 진입(체력 50%↓) + 분노 포효 + HUD 표시`, rg.en && rg.why === 'rage' && rg.hud.includes('분노'), JSON.stringify(rg));
     await sleep(1600); await page.screenshot({ path: `${OUT}/${tag}-enraged.png` });
     // 부위 파괴 → 다운(topple) + 다운 중 피해 1.3배
-    await ev(page, () => { const m = HN.G.monsters[0], p = HN.G.player; m.atkCd = 99; m.ai = 'move'; clearTimeout; m.hp = m.maxHp; m.enraged = true; m.weakened = false; p.state = 'idle'; p.pos.set(m.pos.x, 0, m.pos.z + 2.6); m.parts[0].hp = 1; });
+    await ev(page, () => { const m = HN.G.monsters[0], p = HN.G.player; m.atkCd = 99; m.ai = 'move'; clearTimeout; m.hp = m.maxHp; m.enraged = true; m.weakened = false; p.state = 'idle'; p.pos.set(m.pos.x, 0, m.pos.z + 2.6); m.parts.forEach(pt => { if (!pt.broken) pt.hp = 1; }); }); // v6.0.1: 어느 부위든 파괴되면 다운. 정면 가벼운 공격은 종에 따라 날개가 먼저 맞아서(날짜마다 바뀌는 지도 0번 몬스터) parts[0]만 1로 두면 날짜에 따라 실패했음
     let tp = null; for (let i = 0; i < 6 && !(tp && tp.ai === 'topple'); i++) { await tap(page, W / 2, H * 0.55); await sleep(450); tp = await ev(page, () => ({ ai: HN.G.monsters[0].ai, br: HN.G.stats.broken, tops: HN.G.stats.topples || 0 })); }
     ok(`${tag}: 부위 파괴 → 다운(넘어짐)`, tp.ai === 'topple' && tp.br >= 1 && tp.tops >= 1, JSON.stringify(tp));
     await sleep(200); await page.screenshot({ path: `${OUT}/${tag}-topple.png` });

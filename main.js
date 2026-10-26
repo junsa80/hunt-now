@@ -21,7 +21,8 @@ function freshSave() {
 function migrate(s) {
   if (!s || typeof s !== 'object') return freshSave();
   if (!s.v || s.v < 2) { // v1: settings·codex·armors 없음
-    const f = freshSave(); s = Object.assign(f, s, { weapons: s.weapons || [{ id: 'w1', type: 'sns', elem: 'none', lvl: 1 }, { id: 'w2', type: 'gs', elem: 'none', lvl: 1 }] }); s.settings = Object.assign(f.settings, s.settings || {}); s.codex = s.codex || {}; s.armors = s.armors?.length ? s.armors : f.armors; s.v = 2;
+    const f = freshSave(), hadOpen = 'opened' in s; s = Object.assign(f, s, { weapons: s.weapons || [{ id: 'w1', type: 'sns', elem: 'none', lvl: 1 }, { id: 'w2', type: 'gs', elem: 'none', lvl: 1 }] }); s.settings = Object.assign(f.settings, s.settings || {}); s.codex = s.codex || {}; s.armors = s.armors?.length ? s.armors : f.armors; s.v = 2;
+    if (!hadOpen) { delete s.opened; delete s.beats; } // v6.0.1: v1 기록은 오프닝을 다시 보지 않고 주인공만 고르게(아래 opened 처리)
   }
   if (s.v < 3) { // v3: 무기 7종, 동료는 종마다 한 명(중복 정리), 회피 버튼 옵션
     const notes = []; s.nextId = Math.max(s.nextId || 3, 20); s.mats = s.mats || {}; s.comps = (s.comps || []).filter(c => SPECIES[c.species]); s.party = s.party || [];
@@ -463,13 +464,14 @@ function hurt(e, raw, el, from, big = false) {
 }
 // ───────── 플레이어 무기 액션 ─────────
 const HEAD_PARTS = ['horn', 'crown', 'ear', 'crest'];
+const HEAD_BIAS = 0.65; // 부위 고르기: 차지(무거운) 공격은 머리 부위 거리 ×0.65 → 머리를 노림. 가벼운 공격은 가까운 부위
 function playerAttackHit(p, mult, heavy, opt = {}) {
   const wt = p.wt, f = fwd(p.face), rng = wt.ranged ? 2.4 : wt.range * (opt.rangeMul || 1), center = p.pos.clone().addScaledVector(f, rng * 0.6).setY(1.1);
   const crit = p.counter > 0; let any = false;
   if (p.wtype === 'ls') mult *= 1 + 0.1 * p.spiritLvl;
   for (const m of G.monsters) { if (!alive(m)) continue; const d = m.pos.distanceTo(p.pos), rr = rng + 0.6 * m.S.scale;
     const a = Math.abs(lerpAng(0, angTo(p.pos, m.pos) - p.face, 1)); if (d > rr + (heavy ? 0.5 : 0) || (a > (opt.wide ? 3.2 : 1.25) && d > 1.2)) continue;
-    let part = null, pd = 1.5 * m.S.scale; for (const pt of m.parts) if (!pt.broken) { const wp = anchorWorld(m, pt); const dd = wp.distanceTo(center); if (dd < pd) { pd = dd; part = pt; } }
+    let part = null, pd = 1e9; const lim = 1.5 * m.S.scale; for (const pt of m.parts) if (!pt.broken) { const wp = anchorWorld(m, pt); const dd = wp.distanceTo(center); const ed = Math.hypot(wp.x - center.x, (wp.y - center.y) * 0.5, wp.z - center.z) * (heavy && (pt === m.parts[0] || HEAD_PARTS.includes(pt.key)) ? HEAD_BIAS : 1); if (dd < lim && ed < pd) { pd = ed; part = pt; } } // v6.0.1: 머리 부위는 날개보다 높이 있어 정면에서도 날개가 먼저 잡히던 문제(셀레스·드라카) → 높이 차는 절반만 치고, 차지 공격은 머리 거리 가중
     if (!part && heavy) part = m.parts.find(x => !x.broken); // 차지 공격은 부위를 노림
     damageMonster(m, p.atk * mult, p, { crit, heavy, part, at: part ? anchorWorld(m, part) : null });
     if (wt.ko && alive(m)) addKo(m, mult * (heavy ? 6 : 4) * (part && HEAD_PARTS.includes(part.key) ? 1.5 : 1));
@@ -1202,5 +1204,5 @@ uiEl.addEventListener('change', async (e) => {
 });
 addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
-window.HN = { hitstopTable: () => Object.fromEntries(Object.keys(WEIGHT).map(w => [w, [hitstopOf(w, false, false), hitstopOf(w, false, true), hitstopOf(w, true, false)].map(x => Math.round(x * 1000))])), roll: (a) => { const p = G?.player; if (p && alive(p) && cancelable(p)) { doRoll(p, a); return true; } return false; }, drink: () => drinkPotion(), nowT: () => nowT(), inShape: (sh, x, z) => inShape(sh, x, z), BIG,  beastImg: (sp) => beastImg(sp), noteMoveForTest: (k) => noteMove(k), startTraining: (id) => startTraining(save.comps.find(c => c.id === id)), skipIntro: () => { save.opened = true; save.hero = save.hero || 'aria'; save.beats = BEATS.map(b => b.hr); persist(); village(); }, startHuntForTest: (i = 0) => { village(); clearIdle(); startHunt(save.nodes[i]); }, startHuntNode: (n) => { clearIdle(); startHunt(n); }, damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, huntLv: () => huntLv(), gearLv: () => gearLv(), LADDER, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
+window.HN = { hitstopTable: () => Object.fromEntries(Object.keys(WEIGHT).map(w => [w, [hitstopOf(w, false, false), hitstopOf(w, false, true), hitstopOf(w, true, false)].map(x => Math.round(x * 1000))])), roll: (a) => { const p = G?.player; if (p && alive(p) && cancelable(p)) { doRoll(p, a); return true; } return false; }, drink: () => drinkPotion(), nowT: () => nowT(), inShape: (sh, x, z) => inShape(sh, x, z), BIG,  beastImg: (sp) => beastImg(sp), noteMoveForTest: (k) => noteMove(k), startTraining: (id) => startTraining(save.comps.find(c => c.id === id)), skipIntro: () => { save.opened = true; save.hero = save.hero || 'aria'; save.beats = BEATS.map(b => b.hr); persist(); village(); }, startHuntForTest: (i = 0) => { village(); clearIdle(); startHunt(save.nodes[i]); }, startHuntNode: (n) => { clearIdle(); startHunt(n); }, damageMonsterForTest: (m, b, src, o) => damageMonster(m, b, src, o), hitForTest: (p, mult, heavy) => playerAttackHit(p, mult, heavy), get G() { return G; }, get qLevel() { return qLevel; }, applyQuality, get fx() { return fx; }, renderer, topple, get save() { return save; }, get fps() { return fps; }, input, endHunt, village, migrate, get result() { return lastResult; }, huntLv: () => huntLv(), gearLv: () => gearLv(), LADDER, setSave(s) { save = migrate(s); persist(); village(); }, showResult };
 village();
