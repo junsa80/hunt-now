@@ -3,6 +3,10 @@
 마지막 갱신: 2026-10-26 · 현재 버전: v6.0.2 (저장 형식 v4, SW hunt-now-v6.0.2)
 플레이: https://junsa80.github.io/hunt-now/ · 저장소: https://github.com/junsa80/hunt-now
 
+## 2026-10-26 시뮬 메모 (GrokBot, WORKLOG HN-SIM-01, 코드 변경 없음)
+- 동료 포함 곡선: `COMPS=종:Lv node test/curve-v60.js`. 성장 모델: `node test/growth-v61.mjs`. 동료 Lv 이 의뢰 몬스터보다 5~6 뒤처지지만 승패엔 영향 없음(시간만 ~12%). 동료 레벨 체감이 약하다는 설계 신호.
+- 타격감 스크린샷: `node test/shot-hitfeel.js` (URL·TAG·OUT).
+
 ## v6.0.2 — 첫 실행 오류 · three 압축본 · 성능 측정 (GrokBot, 2026-10-26, HN-QA-02)
 - 첫 실행(저장 없음)에서 `save.mUsed` 없어 마무리 콤보가 오류 → `freshSave()` 에 `mUsed`·`mentor`. 회귀 `test/fresh-v602.js`.
 - `vendor/three.module.min.js` (r160 공식 압축본, 원본과 같은 판). import 4곳·sw.js 목록. 원본 `three.module.js` 는 되돌리기용으로 남김.
