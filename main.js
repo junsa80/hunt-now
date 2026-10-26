@@ -16,7 +16,7 @@ const SAVE_KEY = 'huntnow.save', SAVE_V = 4;
 function freshSave() {
   return { v: SAVE_V, savedAt: Date.now(), hr: 1, hrXp: 0, mats: {}, weapons: WEAPON_ORDER.map((t, i) => ({ id: 'w' + (i + 1), type: t, elem: 'none', lvl: 1 })),
     armors: [{ id: 'a1', sp: 'none', lvl: 1 }], equip: { weapon: 'w1', armor: 'a1' }, comps: [], party: [], settings: { sound: true, vib: true, shake: true, dodgeBtn: true, hint: true, quality: 'auto', dlg: true, tips: true },
-    stats: { hunts: 0, wins: 0, purified: 0, fails: 0 }, codex: {}, nodes: null, nextId: 20, cgear: [], bond: {}, story: {}, field: null, opened: false, hero: null, beats: [] };
+    stats: { hunts: 0, wins: 0, purified: 0, fails: 0 }, codex: {}, nodes: null, nextId: 20, cgear: [], bond: {}, story: {}, field: null, opened: false, hero: null, beats: [], mUsed: {}, mentor: {} }; // v6.0.2: 첫 실행에도 mUsed·mentor (없으면 마무리 콤보에서 noteMove 오류)
 }
 function migrate(s) {
   if (!s || typeof s !== 'object') return freshSave();
