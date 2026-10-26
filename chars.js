@@ -1,5 +1,5 @@
 // 절차적 미소녀 캐릭터: 툰 셰이딩 + 인버티드 헐 외곽선 + 관절 계층
-import * as THREE from './vendor/three.module.js';
+import * as THREE from './vendor/three.module.min.js';
 import { addRim } from './fx.js';
 
 const grad = (() => { const d = new Uint8Array([70, 70, 70, 255, 160, 160, 160, 255, 255, 255, 255, 255]);

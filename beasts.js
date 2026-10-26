@@ -1,6 +1,6 @@
 // v5.1 수호자의 "흐림" 형태: 사족 짐승형 몬스터 (늑대·서리 와이번·용·바다뱀·여우·그리핀). 정화되면 사람(동료) 모습으로 돌아온다.
 // rig는 main.js가 쓰는 이름(body, torso, head, wings, tail, shadow, legs)을 맞추고, 부위 앵커 horn1 / tailTip / wings[0]을 제공한다.
-import * as THREE from './vendor/three.module.js';
+import * as THREE from './vendor/three.module.min.js';
 import { toon, bodyPart as part, GEO as G } from './chars.js';
 const SHAPE = {
   wolf: { len: 1.5, h: 0.78, neck: 0.35, snout: 0.55, ears: true, tailN: 5, tailW: 0.16, bushy: true, horns: 'short', spikes: 4 },

@@ -15,3 +15,15 @@
 - **PR**: grokbot/qa-mobile-260 → main
 - **남은 문제**: 대장간·도감·설정 탭은 목록이라 세로 스크롤(의도). 실제 폰 미검증.
 - **다음**: 전투 손맛 전후 비교, 동료 포함 곡선 표, 성능(프레임) 측정, 미사용 자산 조사.
+
+## 2026-10-26 · HN-QA-02 (GrokBot) — v6.0.2 첫 실행 오류 · 성능 · 자산
+- **수정**
+  - **첫 실행 버그**: 저장이 아예 없는 첫 실행은 `freshSave()` 를 그대로 써서 `mUsed`·`mentor` 칸이 없었음 → 마무리 콤보마다 `noteMove` 에서 `Cannot read properties of undefined (reading 'sns:fin')` 오류, 마무리 타가 안 나가고 스승 팁도 깨짐(새로고침하면 이관이 칸을 채워 사라지던 문제). `freshSave()` 에 두 칸 추가. 저장 형식 그대로(v4).
+  - 성능: three.js r160 을 같은 판의 공식 압축본 `vendor/three.module.min.js` 로 (원본 `three.module.js` 와 md5 일치 확인 후, 원본 파일은 남김). gzip 전송 263KB → 166KB, 로컬 첫 로드 1579KB → 991KB, HN 준비 ~1.5–1.65s → ~1.06–1.1s (CPU ×1).
+  - 자산 점검: img 20 · sfx 1 전부 코드/SW 에서 사용(얼굴 3장은 `hero_${id}_face` 동적). 지울 것 없음. 남는 것은 이제 안 쓰는 `vendor/three.module.js`(되돌리기용으로 둠).
+- **파일**: main.js, fx.js, beasts.js, chars.js, vendor/three.module.min.js(새), sw.js(`hunt-now-v6.0.2`), index.html(`?v=602`), test/fresh-v602.js(새), test/perf.js(새), CHANGELOG.md, HANDOFF.md
+- **테스트 (브라우저 에뮬레이션, swiftshader 소프트웨어 GL)**: fresh-v602 6/6 (수정 전 main 에서는 `mUsed` 없어 실패), qa-v601 14/14, v60 44/44, feel-v4 23/23, v51 12/12, v53 12/12, touch-v2 41/41, v5 31/31. 박스 부하(load 6~10)에서 feel-v4 포효·v5 시범 알림이 한 번씩 흔들렸으나 단독 재실행·main 대조 모두 통과(타이밍 플레이크, 코드 무관).
+- **성능 측정** `test/perf.js` (몬스터 3, 8초): 사냥 중 프레임은 소프트웨어 GL·박스 부하 탓에 19~25fps 로 측정되어 실제 폰 GPU 와 비교 불가. 압축본/원본 사이 차이 없음. draw ~250, 삼각형 ~58k, 힙 ~12MB.
+- **PR**: grokbot/perf-assets → main
+- **남은 문제**: 실제 폰 프레임·발열 미측정. 품질 자동(qLevel)이 소프트웨어 GL 에서도 0 유지 — 실기기에서 확인 필요.
+- **다음**: 동료 포함 곡선 표, 실제 폰 프레임 측정.

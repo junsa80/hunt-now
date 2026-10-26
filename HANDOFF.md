@@ -1,7 +1,12 @@
 # HANDOFF: 헌트 나우 (다른 AI가 이어서 작업하기 위한 메모)
 
-마지막 갱신: 2026-10-26 · 현재 버전: v6.0.1 (저장 형식 v4, SW hunt-now-v6.0.1)
+마지막 갱신: 2026-10-26 · 현재 버전: v6.0.2 (저장 형식 v4, SW hunt-now-v6.0.2)
 플레이: https://junsa80.github.io/hunt-now/ · 저장소: https://github.com/junsa80/hunt-now
+
+## v6.0.2 — 첫 실행 오류 · three 압축본 · 성능 측정 (GrokBot, 2026-10-26, HN-QA-02)
+- 첫 실행(저장 없음)에서 `save.mUsed` 없어 마무리 콤보가 오류 → `freshSave()` 에 `mUsed`·`mentor`. 회귀 `test/fresh-v602.js`.
+- `vendor/three.module.min.js` (r160 공식 압축본, 원본과 같은 판). import 4곳·sw.js 목록. 원본 `three.module.js` 는 되돌리기용으로 남김.
+- 성능 측정 `test/perf.js` (CPU 스로틀, 첫 로드 바이트·long task·사냥 프레임). 소프트웨어 GL 이라 프레임 절대값은 참고만.
 
 ## v6.0.1 — QA: 모바일 한 화면·부위 고르기·이관 (GrokBot, 2026-10-26, HN-QA-01)
 - 작업 로그 형식은 `WORKLOG.md`. 이번 내용: 사냥 탭 360~412px 한 화면·탭 44px, 셀레스·드라카 머리 부위가 정면에서 안 맞던 버그, 코하쿠 귀 앵커, v1 저장 오프닝 재표시, feel-v4 날짜 의존 실패(테스트 쪽).
