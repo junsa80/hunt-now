@@ -278,11 +278,15 @@ const gearName = (g) => `${GPIECE[g.sp][Object.keys(GSLOTS).indexOf(g.slot)]} +$
 const gearStat = (g) => g ? { hp: 12 + g.lvl * 8, def: 3 + g.lvl * 2, atk: g.slot === 'arms' ? 1 + g.lvl : g.slot === 'head' ? Math.floor(g.lvl / 2) : 0 } : { hp: 0, def: 0, atk: 0 };
 const gearCost = (lvl) => ({ hide: 2 + lvl, part: lvl }); // lvl=0이면 제작 (가죽 2 + 부위 0 → 제작은 아래에서 부위 1 이상)
 function setCount(c, gearMap = c.gear || {}) { return Object.values(gearMap).map(gearById).filter(g => g && g.sp === c.species).length; }
+// v6.1: 동료 레벨이 체감되게 — 레벨마다 공격 +10% · 체력 +6% 를 곱으로 더 (Lv1 그대로, Lv10 공격 ×1.9 · 체력 ×1.54). 치유 스킬도 레벨 따라
+const COMP_LV = { atk: 0.1, hp: 0.06 }, compLvMul = (c, k) => 1 + COMP_LV[k] * ((c.level || 1) - 1);
+const compHeal = (c) => Math.min(0.34, 0.16 + 0.012 * (c.level || 1)); // Lv5 = 0.22 (예전 고정값)
+const COMP_XP = { base: 20, perLv: 8 }; // 사냥 Lv 이 높을수록 동료 경험치도 (예전 30 고정) → 긴급 의뢰 곡선을 따라감 (test/growth-v61.mjs)
 function compStats(c, gearMap) {
   const w = weaponById(c.weapon), a = armorById(c.armor), pm = 1 + 0.1 * (c.potential - 1); gearMap = gearMap || c.gear || {};
   const gs = Object.values(gearMap).map(gearById).reduce((t, g) => { const x = gearStat(g); t.hp += x.hp; t.def += x.def; t.atk += x.atk; return t; }, { hp: 0, def: 0, atk: 0 });
   const sc = setCount(c, gearMap), X = sc >= 3 ? SETX[c.species] : {}, sAtk = (sc >= 2 ? 1.1 : 1) * (X.atk || 1), sHp = (sc >= 3 ? 1.15 : 1) * (X.hp || 1);
-  return { hp: Math.round(((70 + c.level * 7) * pm + armorDef(a) * 1.5 + gs.hp) * sHp), atk: Math.round(((4 + c.level * 1.1) * pm + weaponAtk(w) * 0.45 + gs.atk) * sAtk), def: armorDef(a) * 0.6 + gs.def + (X.def || 0), set: sc, elem: w?.elem && w.elem !== 'none' ? w.elem : SPECIES[c.species].elem, wtype: w?.type || 'sns' };
+  return { hp: Math.round(((70 + c.level * 7) * pm + armorDef(a) * 1.5 + gs.hp) * sHp * compLvMul(c, 'hp')), atk: Math.round(((4 + c.level * 1.1) * pm + weaponAtk(w) * 0.45 + gs.atk) * sAtk * compLvMul(c, 'atk')), def: armorDef(a) * 0.6 + gs.def + (X.def || 0), set: sc, elem: w?.elem && w.elem !== 'none' ? w.elem : SPECIES[c.species].elem, wtype: w?.type || 'sns' };
 }
 const WMODEL = { sns: { weapon: 'sns', shield: 0xb04050 }, gs: { weapon: 'gs' }, ls: { weapon: 'ls' }, db: { weapon: 'db', offhand: 'db' }, hammer: { weapon: 'whammer' }, lance: { weapon: 'lance', bigShield: 0x4a6ab0 }, bow: { weapon: null, offhand: 'bow' } };
 // 스승 보너스 계산 (같은 무기 + 그 동료 편성)
@@ -762,7 +766,7 @@ function updComp(c, dt) {
   c.skillCd -= dt; c.cd -= dt * spdBoost;
   if (c.skillCd <= 0) { c.skillCd = { tank: 8, healer: 6, buffer: 11, debuffer: 9, dealer: 7 }[c.role];
     if (c.role === 'tank') { tgt.taunt = 4; tgt.aggro = c; popNum(c.pos, '도발!', 'info'); c.guard = 1.2; }
-    if (c.role === 'healer') { const low = G.allies.filter(a => alive(a) && a.hp / a.maxHp < 0.7).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0]; if (low) { const h = Math.round(low.maxHp * 0.22); low.hp = Math.min(low.maxHp, low.hp + h); popNum(low.pos, '+' + h, 'heal'); burst(low.pos.clone().setY(1), 0x7dff9a, 14, 3); } else c.skillCd = 1.5; }
+    if (c.role === 'healer') { const low = G.allies.filter(a => alive(a) && a.hp / a.maxHp < 0.7).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0]; if (low) { const h = Math.round(low.maxHp * compHeal(c.comp)); low.hp = Math.min(low.maxHp, low.hp + h); popNum(low.pos, '+' + h, 'heal'); burst(low.pos.clone().setY(1), 0x7dff9a, 14, 3); } else c.skillCd = 1.5; }
     if (c.role === 'buffer') { G.buff = 6; popNum(c.pos, '공격 강화!', 'info'); G.allies.forEach(a => alive(a) && burst(a.pos.clone().setY(1.4), 0xffd24a, 6, 2)); }
     if (c.role === 'debuffer') { tgt.defDown = 6; tgt.slow = 6; popNum(tgt.pos, '약화·둔화!', 'info'); burst(tgt.pos.clone().setY(1.4), 0xb070ff, 14, 3); }
     if (c.role === 'dealer') { c.cd = 0; c.burst = 3; popNum(c.pos, '연속 공격!', 'info'); }
@@ -916,7 +920,7 @@ function endHunt(win) {
   for (const k in drops) addMat(k, drops[k]);
   const xp = Math.round((40 + node.lvl * 20) * share) + (lad ? lad.xp : 0);
   save.hrXp += xp; let ranked = false; while (save.hrXp >= save.hr * 100) { save.hrXp -= save.hr * 100; save.hr++; ranked = true; }
-  const compXp = Math.round(30 * share); save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) { c.xp = (c.xp || 0) + Math.round(compXp * xpMul(c, save.comps)); while (c.xp >= c.level * 60 && c.level < 10 + c.potential * 4) { c.xp -= c.level * 60; c.level++; } } });
+  const compXp = Math.round((COMP_XP.base + COMP_XP.perLv * node.lvl) * share); save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) { c.xp = (c.xp || 0) + Math.round(compXp * xpMul(c, save.comps)); while (c.xp >= c.level * 60 && c.level < 10 + c.potential * 4) { c.xp -= c.level * 60; c.level++; } } });
   save.party.forEach(id => { const c = save.comps.find(x => x.id === id); if (c) save.bond[c.species] = (save.bond[c.species] || 0) + (win ? 2 : 1); });
   save.stats.hunts++; if (win) save.stats.wins++; else save.stats.fails++;
   st.dur = G.t; const noHit = win && st.hits === 0, clean = win && st.perfect >= 3, bo = (k, n) => { add(k, n); addMat(k, n); }; // 무피격·완벽 회피 3회 보상

@@ -1,7 +1,12 @@
 # HANDOFF: 헌트 나우 (다른 AI가 이어서 작업하기 위한 메모)
 
-마지막 갱신: 2026-10-26 · 현재 버전: v6.0.2 (저장 형식 v4, SW hunt-now-v6.0.2)
+마지막 갱신: 2026-10-26 · 현재 버전: v6.1.0 (저장 형식 v4, SW hunt-now-v6.1.0)
 플레이: https://junsa80.github.io/hunt-now/ · 저장소: https://github.com/junsa80/hunt-now
+
+## v6.1.0 — 동료 레벨 체감 (GrokBot, 2026-10-26, WORKLOG HN-BAL-01)
+- `main.js` `COMP_LV`: 동료 공격 ×(1+0.10×(Lv−1)) · 체력 ×(1+0.06×(Lv−1)) — Lv1 그대로, Lv8 공격 ×1.7, Lv15 ×2.4. `compHeal`: 치유 스킬 = 0.16+0.012×Lv (Lv5 = 예전 22%, 상한 34%). `COMP_XP`: 동료 경험치 30 고정 → 20+8×사냥 Lv.
+- 솔로는 코드 경로가 그대로 (동료 없음 → 바뀐 값 안 씀). 몬스터 수치 그대로. 저장 형식 그대로.
+- 결과는 WORKLOG HN-BAL-01 표.
 
 ## 2026-10-26 시뮬 메모 (GrokBot, WORKLOG HN-SIM-01, 코드 변경 없음)
 - 동료 포함 곡선: `COMPS=종:Lv node test/curve-v60.js`. 성장 모델: `node test/growth-v61.mjs`. 동료 Lv 이 의뢰 몬스터보다 5~6 뒤처지지만 승패엔 영향 없음(시간만 ~12%). 동료 레벨 체감이 약하다는 설계 신호.
