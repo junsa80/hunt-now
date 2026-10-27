@@ -1,0 +1,23 @@
+{
+  "checkedAt": "2026-10-27T04:35:46.535485+00:00",
+  "files": [
+    {
+      "path": "main.js",
+      "status": 200,
+      "match": true,
+      "sha256": "3ddcf8488a284858566e39bb20b3c884e1ddf7c0d3615697e523372a3914e73d"
+    },
+    {
+      "path": "index.html",
+      "status": 200,
+      "match": true,
+      "sha256": "f8b82d2588e9f5207988f8cff182a81b81f41156d992d0fa13cecc54b8d79bb6"
+    },
+    {
+      "path": "sw.js",
+      "status": 200,
+      "match": true,
+      "sha256": "601d47a3ed0a340cf5d4a625db7e41912c8b071ac8c059a32d0926501eae22b4"
+    }
+  ]
+}
